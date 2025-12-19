@@ -1,0 +1,127 @@
+# Academic RAG Model - Core Dependencies
+# Install with: pip install -r requirements.txt
+# Note: For GPU support, install PyTorch with CUDA after installing requirements
+
+# ===========================================
+# CORE RAG FRAMEWORK (Essential)
+# ===========================================
+# ML Models & Embeddings
+torch>=2.9.1
+transformers>=4.57.1
+sentence-transformers>=5.1.2
+sentencepiece>=0.2.1
+
+# Vector Database
+chromadb>=1.3.4
+
+# Search Engine (Optional - not required for unified system)
+# elasticsearch>=9.2.0  # Legacy - only needed for dual-index system
+
+# Document Processing
+pypdf>=6.2.0
+pdfplumber>=0.11.8
+pillow>=12.0.0
+
+# ===========================================
+# LLM PROVIDERS (Essential)
+# ===========================================
+requests>=2.32.5              # For Ollama and API calls
+openai>=2.8.1               # OpenAI API
+anthropic>=0.75.0            # Anthropic Claude API
+google-generativeai>=0.8.5 # Google Gemini API
+
+# ===========================================
+# CONFIGURATION & UTILITIES (Essential)
+# ===========================================
+python-dotenv>=1.2.1         # Environment configuration
+pydantic>=2.12.4             # Data validation
+pyyaml>=6.0.3                # YAML configuration
+tqdm>=4.67.1                 # Progress bars
+tenacity>=9.1.2              # Retry logic
+httpx>=0.28.1                # HTTP client
+orjson>=3.11.4               # Fast JSON parsing
+rich>=14.2.0                 # Enhanced logging
+cachetools>=6.2.2            # Caching functionality
+
+# ===========================================
+# API DEVELOPMENT (For web API)
+# ===========================================
+fastapi>=0.104.0              # Web framework
+uvicorn>=0.24.0               # ASGI server
+streamlit>=1.51.0             # Web UI framework (optional)
+
+# ===========================================
+# THESIS RESEARCH (For evaluation and analysis)
+# ===========================================
+# Data Analysis & Statistics
+numpy>=2.3.4
+pandas>=2.3.3
+scipy>=1.16.3
+scikit-learn>=1.7.2  # Essential for BM25 implementation in unified system
+
+# ML Optimization & Acceleration
+accelerate>=1.12.0           # PyTorch optimization and multi-GPU support
+datasets>=4.4.1              # HuggingFace datasets for research
+evaluate>=0.4.6              # Model evaluation framework
+
+# Visualization
+matplotlib>=3.10.7
+seaborn>=0.13.2
+plotly>=6.4.0               # Used in result_visualizer.py
+statsmodels>=0.14.5         # Used for statistical testing
+
+# Evaluation Framework
+ragas>=0.4.0                # RAG evaluation metrics
+
+# ===========================================
+# GPU SUPPORT (Install after base requirements)
+# ===========================================
+# Official PyTorch installation for CUDA support:
+
+# For CUDA 12.8 (latest recommended)
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# For CUDA 12.6
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+
+# For CUDA 13.0
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
+
+# For CPU-only (no GPU)
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# Verify CUDA installation:
+# python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+# python -c "import torch; print(f'CUDA version: {torch.version.cuda if torch.cuda.is_available() else \"N/A\"}')"
+
+# For different CUDA versions and platforms:
+# https://pytorch.org/get-started/locally/
+
+# ===========================================
+# INSTALLATION EXAMPLES
+# ===========================================
+# Basic installation (CPU only):
+# pip install -r requirements.txt
+# pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# With CUDA support (choose one version):
+# pip install -r requirements.txt
+# pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# For development with all features:
+# pip install -r requirements.txt
+# pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# Installation with conda (recommended):
+# conda env create -f environment.yml
+# conda activate academic-rag
+# pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# ===========================================
+# VERIFICATION
+# ===========================================
+# Test installation with:
+# python -c "from rag_model import AcademicRAG; print('✅ AcademicRAG imported successfully')"
+
+# Test LLM providers with:
+# python -c "from rag_model import AcademicRAG; rag = AcademicRAG(); print(f'Provider: {rag.config.llm.model_type}')"

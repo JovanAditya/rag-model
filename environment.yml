@@ -1,0 +1,104 @@
+name: academic-rag
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  # Python version
+  - python=3.11
+
+  # Core Data Science (Conda-managed for better compatibility)
+  - numpy>=2.3.4
+  - pandas>=2.3.3
+  - scipy>=1.16.3
+  - scikit-learn>=1.7.2  # Essential for BM25 implementation in unified system
+
+  # Visualization (Conda-managed)
+  - matplotlib>=3.10.8
+  - seaborn>=0.11.1
+
+  # Development & Jupyter (Conda-managed)
+  - jupyter>=1.0.0
+  - tqdm>=4.38.0
+  - python-dotenv>=0.8.2
+  - pydantic>=2.0.3
+  - tenacity>=6.2.0
+  - httpx>=0.23.1
+  - pyyaml>=6.0.3
+
+  # Development tools (optional - for development only)
+  - pytest>=7.2.0
+  - pytest-cov>=2.5.1
+  - black>=25.1.0
+  - flake8>=3.7.9
+
+  - pip
+  - pip:
+      # Core ML Models (Essential)
+      - torch>=2.9.1
+      - transformers>=4.57.1
+      - sentence-transformers>=5.1.2
+      - sentencepiece>=0.2.1
+
+      # Vector Database (Essential)
+      - chromadb>=1.3.4
+
+      # Search Engine (Optional - not required for unified system)
+      # elasticsearch>=9.2.0  # Legacy - only needed for dual-index system
+
+      # Document Processing (Essential)
+      - pypdf>=6.2.0
+      - pdfplumber>=0.11.8
+      - pillow>=12.0.0
+
+      # LLM Integration (Essential)
+      - requests>=2.32.5
+      - openai>=2.8.1
+      - anthropic>=0.75.0
+      - google-generativeai>=0.8.5
+
+      # API Development (For web API)
+      - fastapi>=0.104.0
+      - uvicorn>=0.24.0
+
+      # ML Optimization & Acceleration (For research)
+      - accelerate>=1.12.0 # PyTorch optimization and multi-GPU support
+      - datasets>=4.4.1 # HuggingFace datasets for research
+      - evaluate>=0.4.6 # Model evaluation framework
+
+      # Evaluation Framework (For thesis research)
+      - ragas>=0.4.0
+      - plotly>=6.4.0 # For visualization in result_visualizer.py
+      - statsmodels>=0.14.5 # For statistical testing
+      - cachetools>=6.2.2 # For caching functionality
+      - rich>=14.2.0 # For enhanced logging and console output
+      - orjson>=3.11.4 # Fast JSON parsing
+      - tenacity>=9.1.2 # Retry logic
+
+# Variables for environment
+variables:
+  CUDA_VISIBLE_DEVICES: "0"
+  TOKENIZERS_PARALLELISM: "false"
+# GPU Support Instructions:
+# ========================================
+# For CUDA support, install PyTorch with CUDA after conda env creation:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# For different CUDA versions, check https://pytorch.org/get-started/locally/
+
+# Installation Instructions:
+# ========================================
+# 1. Create environment: conda env create -f environment.yml
+# 2. Activate: conda activate academic-rag
+# 3. Install GPU support (optional):
+#    pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+# 4. Verify installation: python -c "from rag_model import AcademicRAG"
+
+# Check CUDA version:
+# ========================================
+# Check if CUDA is available:
+# nvidia-smi
+# nvcc --version
+
+# For different CUDA versions:
+# https://pytorch.org/get-started/locally/
