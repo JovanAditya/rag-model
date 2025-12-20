@@ -25,24 +25,36 @@ Complete installation guide for Windows users.
 
 ## Manual Installation
 
-If the script fails, install manually:
+Jika script installer gagal, install secara manual:
+
+### Opsi 1: Menggunakan environment.yml (RECOMMENDED)
+
+```cmd
+REM Install dari environment.yml
+conda env create -f environment.yml
+conda activate academic-rag
+
+REM (Opsional) Install PyTorch dengan GPU CUDA
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+```
+
+### Opsi 2: Instalasi Step-by-Step
+
+Jika `environment.yml` gagal:
 
 ```cmd
 REM Create environment
 conda create -n academic-rag python=3.11 -y
 conda activate academic-rag
 
-REM Install PyTorch (choose one)
-REM For CUDA (Windows):
+REM Install PyTorch (pilih salah satu)
+REM Untuk CUDA (Windows):
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-REM For CPU (Windows):
+REM Untuk CPU (Windows):
 pip install torch torchvision torchaudio
 
-REM Install other packages
-pip install sentence-transformers chromadb transformers
-pip install fastapi uvicorn pydantic
-pip install pypdf pdfplumber pillow
-pip install rich python-dotenv
+REM Install packages lain via requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Verify Installation

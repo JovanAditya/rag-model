@@ -49,8 +49,12 @@ rag-model/
 git clone https://github.com/JovanAditya/rag-model.git
 cd rag-model
 
-# Install dependencies
-pip install -r requirements.txt
+# Install menggunakan environment.yml (RECOMMENDED)
+conda env create -f environment.yml
+conda activate academic-rag
+
+# (Opsional) Install GPU support untuk PyTorch
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
 # Konfigurasi environment
 cp .env.example .env

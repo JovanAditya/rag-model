@@ -25,32 +25,51 @@ chmod +x install.sh
 
 ## Instalasi Manual
 
-### Langkah 1: Buat Environment
+### Langkah 1: Buat Environment (RECOMMENDED)
 
+Gunakan `environment.yml` untuk instalasi lengkap:
+
+```bash
+conda env create -f environment.yml
+conda activate academic-rag
+```
+
+### Langkah 2: (Opsional) Install PyTorch dengan GPU
+
+Jika ingin menggunakan GPU CUDA:
+
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+```
+
+### Alternatif: Instalasi Manual Step-by-Step
+
+Jika `environment.yml` gagal, ikuti langkah berikut:
+
+**1. Buat environment kosong:**
 ```bash
 conda create -n academic-rag python=3.11 -y
 conda activate academic-rag
 ```
 
-### Langkah 2: Install PyTorch
+**2. Install PyTorch:**
 
-**CUDA (GPU):**
-```bash
-conda install pytorch torchvision torchaudio pytorch-cuda=12.4 -c pytorch -c nvidia -y
-```
+- **CUDA (GPU):**
+  ```bash
+  conda install pytorch torchvision torchaudio pytorch-cuda=12.4 -c pytorch -c nvidia -y
+  ```
 
-**CPU Only:**
-```bash
-conda install pytorch torchvision torchaudio cpuonly -c pytorch -y
-```
+- **CPU Only:**
+  ```bash
+  conda install pytorch torchvision torchaudio cpuonly -c pytorch -y
+  ```
 
-**Mac (MPS):**
-```bash
-conda install pytorch torchvision torchaudio -c pytorch -y
-```
+- **Mac (MPS):**
+  ```bash
+  conda install pytorch torchvision torchaudio -c pytorch -y
+  ```
 
-### Langkah 3: Install Packages
-
+**3. Install Packages via requirements.txt:**
 ```bash
 pip install -r requirements.txt
 ```

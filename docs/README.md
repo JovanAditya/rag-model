@@ -27,8 +27,9 @@ Dokumentasi lengkap untuk modul RAG Model.
 ## 📂 Referensi Cepat
 
 ```bash
-# Install
-pip install -r requirements.txt
+# Install menggunakan environment.yml
+conda env create -f environment.yml
+conda activate academic-rag
 cp .env.example .env
 
 # Build index
