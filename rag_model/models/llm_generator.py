@@ -391,7 +391,7 @@ Jawaban:"""
         response = requests.post(
             self.endpoint,
             json=payload,
-            timeout=60,  # Increased timeout for local models
+            timeout=180,  # 3 minutes timeout for larger local models (8B+)
         )
 
         if response.status_code != 200:
