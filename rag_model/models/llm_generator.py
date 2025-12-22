@@ -27,12 +27,61 @@ from ..utils.logging import PipelineLogger
 from ..utils.helpers import truncate_context, validate_query
 
 
+def _translate_error_to_user_message(error: str) -> str:
+    """
+    Translate technical API errors to user-friendly messages in Indonesian.
+    
+    Args:
+        error: Technical error message from API
+        
+    Returns:
+        User-friendly error message
+    """
+    error_lower = error.lower()
+    
+    # Rate limit errors
+    if "429" in error or "rate" in error_lower or "limit" in error_lower:
+        return "Maaf, server AI sedang sibuk. Silakan tunggu beberapa saat dan coba lagi."
+    
+    # Authentication errors
+    if "401" in error or "403" in error or "unauthorized" in error_lower or "invalid api key" in error_lower:
+        return "Maaf, terjadi masalah autentikasi dengan layanan AI. Silakan hubungi administrator."
+    
+    # Timeout errors
+    if "timeout" in error_lower or "timed out" in error_lower:
+        return "Maaf, permintaan memakan waktu terlalu lama. Silakan coba dengan pertanyaan yang lebih singkat."
+    
+    # Connection errors
+    if "connection" in error_lower or "connect" in error_lower:
+        return "Maaf, tidak dapat terhubung ke layanan AI. Silakan coba beberapa saat lagi."
+    
+    # Model not found
+    if "model" in error_lower and ("not found" in error_lower or "does not exist" in error_lower):
+        return "Maaf, model AI tidak tersedia saat ini. Silakan hubungi administrator."
+    
+    # Content filter
+    if "content" in error_lower and ("filter" in error_lower or "policy" in error_lower or "blocked" in error_lower):
+        return "Maaf, pertanyaan tidak dapat diproses karena kebijakan konten. Silakan ubah pertanyaan Anda."
+    
+    # Quota exceeded
+    if "quota" in error_lower or "exceeded" in error_lower or "billing" in error_lower:
+        return "Maaf, kuota layanan AI telah habis. Silakan hubungi administrator."
+    
+    # Server errors
+    if "500" in error or "502" in error or "503" in error or "server" in error_lower:
+        return "Maaf, terjadi kesalahan pada server AI. Silakan coba beberapa saat lagi."
+    
+    # Default fallback
+    return "Maaf, terjadi kesalahan saat memproses pertanyaan Anda. Silakan coba lagi."
+
+
 class LLMGenerator:
     """
     Generate responses using configurable LLM backends.
 
-    Supports multiple LLM providers including local models (via Ollama)
-    and cloud APIs (Google Gemini) for flexible generation.
+    Supports multiple LLM providers including local models (via Ollama),
+    cloud APIs (Google Gemini, OpenAI, Anthropic), and OpenRouter for
+    flexible generation with multiple model options.
     """
 
     def __init__(
@@ -72,6 +121,8 @@ class LLMGenerator:
                 self._initialize_openai()
             elif self.config.model_type == "anthropic":
                 self._initialize_anthropic()
+            elif self.config.model_type == "openrouter":
+                self._initialize_openrouter()
             elif self.config.model_type in ["ollama", "qwen", "llama"]:
                 self._initialize_ollama()
             else:
@@ -128,6 +179,23 @@ class LLMGenerator:
             self.logger.error(f"Failed to connect to Ollama: {e}")
             raise
 
+    def _initialize_openrouter(self) -> None:
+        """Initialize OpenRouter API client using OpenAI-compatible interface."""
+        if openai is None:
+            raise ImportError("OpenAI library not installed. Run: pip install openai")
+
+        api_key = self.config.get_api_key()
+        if not api_key:
+            raise ValueError("OpenRouter API key is required. Get one at https://openrouter.ai/keys")
+
+        # OpenRouter uses OpenAI-compatible API
+        base_url = self.config.openrouter_endpoint or "https://openrouter.ai/api/v1"
+        self.client = openai.OpenAI(
+            api_key=api_key,
+            base_url=base_url
+        )
+        self.logger.info(f"OpenRouter initialized with base URL: {base_url}")
+
     @retry(
         stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10)
     )
@@ -173,6 +241,8 @@ class LLMGenerator:
                 result = self._generate_openai(full_prompt, max_tokens, temperature)
             elif self.config.model_type == "anthropic":
                 result = self._generate_anthropic(full_prompt, max_tokens, temperature)
+            elif self.config.model_type == "openrouter":
+                result = self._generate_openrouter(full_prompt, max_tokens, temperature)
             else:  # qwen or llama via Ollama
                 result = self._generate_ollama(full_prompt, max_tokens, temperature)
 
@@ -250,30 +320,42 @@ Jawaban:"""
         Returns:
             Generation result
         """
-        generation_config = {
-            "temperature": temperature or self.config.temperature,
-            "max_output_tokens": max_tokens or self.config.max_tokens,
-            "top_p": self.config.top_p,
-        }
+        try:
+            generation_config = {
+                "temperature": temperature or self.config.temperature,
+                "max_output_tokens": max_tokens or self.config.max_tokens,
+                "top_p": self.config.top_p,
+            }
 
-        response = self.model.generate_content(
-            prompt, generation_config=generation_config
-        )
+            response = self.model.generate_content(
+                prompt, generation_config=generation_config
+            )
 
-        return {
-            "answer": response.text,
-            "model": self.config.get_model_name(),
-            "tokens_used": (
-                response.usage_metadata.total_token_count
-                if hasattr(response, "usage_metadata")
-                else 0
-            ),
-            "finish_reason": (
-                response.candidates[0].finish_reason.name
-                if response.candidates
-                else "unknown"
-            ),
-        }
+            return {
+                "answer": response.text,
+                "success": True,
+                "model": self.config.get_model_name(),
+                "tokens_used": (
+                    response.usage_metadata.total_token_count
+                    if hasattr(response, "usage_metadata")
+                    else 0
+                ),
+                "finish_reason": (
+                    response.candidates[0].finish_reason.name
+                    if response.candidates
+                    else "unknown"
+                ),
+            }
+        
+        except Exception as e:
+            self.logger.error(f"Gemini API error: {str(e)}")
+            user_message = _translate_error_to_user_message(str(e))
+            return {
+                "answer": user_message,
+                "success": False,
+                "tokens_used": 0,
+                "model": self.config.get_model_name()
+            }
 
     def _generate_openai(
         self,
@@ -312,8 +394,9 @@ Jawaban:"""
 
         except Exception as e:
             self.logger.error(f"OpenAI API error: {str(e)}")
+            user_message = _translate_error_to_user_message(str(e))
             return {
-                "answer": f"Error: OpenAI API failed - {str(e)}",
+                "answer": user_message,
                 "success": False,
                 "tokens_used": 0,
                 "model": self.config.get_model_name()
@@ -355,8 +438,58 @@ Jawaban:"""
 
         except Exception as e:
             self.logger.error(f"Anthropic API error: {str(e)}")
+            user_message = _translate_error_to_user_message(str(e))
             return {
-                "answer": f"Error: Anthropic API failed - {str(e)}",
+                "answer": user_message,
+                "success": False,
+                "tokens_used": 0,
+                "model": self.config.get_model_name()
+            }
+
+    def _generate_openrouter(
+        self,
+        prompt: str,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate via OpenRouter API (OpenAI-compatible).
+
+        Args:
+            prompt: Input prompt
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature
+
+        Returns:
+            Generation result
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.config.get_model_name(),
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=max_tokens or self.config.max_tokens,
+                temperature=temperature or self.config.temperature,
+                top_p=self.config.top_p,
+                extra_headers={
+                    "HTTP-Referer": "https://github.com/academic-rag",
+                    "X-Title": "Academic RAG System"
+                }
+            )
+
+            return {
+                "answer": response.choices[0].message.content,
+                "success": True,
+                "tokens_used": response.usage.total_tokens if response.usage else 0,
+                "model": self.config.get_model_name()
+            }
+
+        except Exception as e:
+            self.logger.error(f"OpenRouter API error: {str(e)}")
+            user_message = _translate_error_to_user_message(str(e))
+            return {
+                "answer": user_message,
                 "success": False,
                 "tokens_used": 0,
                 "model": self.config.get_model_name()

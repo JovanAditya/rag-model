@@ -26,7 +26,7 @@ from typing import Dict, List, Optional, Union, Literal
 from pathlib import Path
 
 # Type definitions for better IDE support
-LLMType = Literal["ollama", "openai", "anthropic", "gemini", "qwen", "llama"]
+LLMType = Literal["ollama", "openai", "anthropic", "gemini", "openrouter", "qwen", "llama"]
 PipelineType = Literal["baseline", "advanced"]
 DeviceType = Literal["cpu", "cuda"]
 
@@ -51,6 +51,7 @@ class LLMConfig:
     _api_key: Optional[str] = None
     endpoint: Optional[str] = None
     ollama_endpoint: Optional[str] = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    openrouter_endpoint: Optional[str] = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
     def get_model_name(self) -> str:
         """Get full model name based on type and .env configuration."""
@@ -64,6 +65,7 @@ class LLMConfig:
             "openai": os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
             "anthropic": os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229"),
             "gemini": os.getenv("GEMINI_MODEL", "gemini-pro"),
+            "openrouter": os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"),
             "qwen": os.getenv("QWEN_MODEL", "qwen3:8b"),
             "llama": os.getenv("LLAMA_MODEL", "llama3.1:8b")
         }
@@ -77,6 +79,8 @@ class LLMConfig:
             return os.getenv("ANTHROPIC_API_KEY")
         elif self.model_type == "gemini":
             return os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        elif self.model_type == "openrouter":
+            return os.getenv("OPENROUTER_API_KEY")
         return None
 
     @property
@@ -87,7 +91,7 @@ class LLMConfig:
     @property
     def needs_api_key(self) -> bool:
         """Check if LLM requires API key."""
-        return self.model_type in ["openai", "anthropic", "gemini"]
+        return self.model_type in ["openai", "anthropic", "gemini", "openrouter"]
 
 
 @dataclass
@@ -356,7 +360,7 @@ class RAGConfig:
             raise ValueError("Embedding model name cannot be empty")
 
         # Validate LLM config
-        if self.llm.model_type not in ["ollama", "openai", "anthropic", "gemini", "qwen", "llama"]:
+        if self.llm.model_type not in ["ollama", "openai", "anthropic", "gemini", "openrouter", "qwen", "llama"]:
             raise ValueError(f"Invalid LLM type: {self.llm.model_type}")
 
         if self.llm.needs_api_key and not self.llm.api_key:
