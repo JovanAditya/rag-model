@@ -35,7 +35,7 @@ class RAGResult:
 
     # Pipeline information
     pipeline_type: str = "advanced"
-    llm_used: str = "qwen"
+    llm_used: str = "gemini"
     embedding_model: str = "indobenchmark/indobert-base-p2"
 
     # Additional metadata

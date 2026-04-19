@@ -7,10 +7,10 @@ Configure LLM providers and data paths for Academic RAG.
 Create `.env` file in `rag-model/` folder (copy from `.env.example`):
 
 ```env
-# LLM Provider: ollama (free), openai, anthropic, gemini
+# LLM Provider: gemini (cloud) atau ollama (lokal)
 LLM_PROVIDER=gemini
-GEMINI_MODEL=gemini-1.5-flash
-GOOGLE_API_KEY=your-api-key
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_API_KEY=your-api-key
 
 # Data directories (relative to rag-model/)
 DATA_DIR=../data
@@ -34,31 +34,31 @@ INDEX_CACHE_DIR=../data/cache
 
 | Provider | Cost | Setup |
 |----------|------|-------|
-| Ollama | Free | Local install |
-| Gemini | Free tier | API key |
-| OpenAI | Paid | API key |
-| Anthropic | Paid | API key |
+| Gemini | Free tier / Pay-as-you-go | API key dari Google AI Studio |
+| Ollama | Free | Install lokal |
+
+## Using Gemini (Recommended)
+
+```env
+LLM_PROVIDER=gemini
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_API_KEY=your-api-key
+```
 
 ## Using Ollama (Free, Local)
 
 ```bash
 # Install from https://ollama.ai
-ollama pull llama2
+ollama pull llama3.2:latest
 ollama serve
 ```
 
+### Konfigurasi `.env`
+
 ```env
 LLM_PROVIDER=ollama
-OLLAMA_MODEL=llama2
+OLLAMA_MODEL=llama3.2:latest
 OLLAMA_BASE_URL=http://localhost:11434
-```
-
-## Using Gemini (Free Tier)
-
-```env
-LLM_PROVIDER=gemini
-GEMINI_MODEL=gemini-1.5-flash
-GOOGLE_API_KEY=your-api-key
 ```
 
 ## Verify Configuration

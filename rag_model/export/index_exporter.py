@@ -232,7 +232,7 @@ class IndexExporter:
                 "llm": {
                     "model_type": "ollama",
                     "endpoint": "http://localhost:11434",
-                    "model_name": "qwen3:8b"
+                    "model_name": "gemini-2.5-flash"
                 }
             }
 

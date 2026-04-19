@@ -31,7 +31,7 @@ RAG menggabungkan:
 | **Hybrid Search** | Kombinasi vector (semantic) dan BM25 (keyword) search |
 | **RRF Fusion** | Reciprocal Rank Fusion untuk kombinasi hasil |
 | **Reranking** | Cross-encoder reranking untuk akurasi lebih tinggi |
-| **Multi-LLM** | Mendukung Gemini, OpenAI, Anthropic, Ollama |
+| **LLM Backend** | Mendukung Gemini (Cloud) dan Ollama (Lokal) |
 
 ## Pipeline
 

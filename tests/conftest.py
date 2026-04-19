@@ -42,10 +42,10 @@ def pytest_runtest_setup(item):
 pytest.fixture(autouse=True)
 def setup_test_environment():
     """Setup test environment variables."""
-    osmodel/.environ.setdefault('EMBEDDING_DEVICE', 'cpu')
-    osmodel/.environ.setdefault('TESTING', 'true')
-    osmodel/.environ.setdefault('LOG_LEVEL', 'DEBUG')
-    osmodel/.environ.setdefault('RANDOM_SEED', '42')
+    os.environ.setdefault('EMBEDDING_DEVICE', 'cpu')
+    os.environ.setdefault('TESTING', 'true')
+    os.environ.setdefault('LOG_LEVEL', 'DEBUG')
+    os.environ.setdefault('RANDOM_SEED', '42')
 
 @pytest.fixture
 def temp_dir():
@@ -122,7 +122,7 @@ def mock_config():
     mock_embedding_config.batch_size = 16
 
     mock_llm_config = Mock()
-    mock_llm_config.model_type = "qwen"
+    mock_llm_config.model_type = "gemini"
     mock_llm_config.temperature = 0.1
     mock_llm_config.max_tokens = 100
 
@@ -207,7 +207,7 @@ def mock_llm():
     mock_llm = Mock()
     mock_llm.generate.return_value = {
         "answer": "This is a test response.",
-        "model": "qwen3:8b",
+        "model": "gemini-2.5-flash",
         "tokens_used": 50,
         "generation_time": 2.0
     }

@@ -8,7 +8,7 @@ Repository ini berisi implementasi model RAG dengan:
 - **Hybrid Search**: Kombinasi Vector Search (ChromaDB) + BM25 (Sparse)
 - **IndoBERT Embedding**: Menggunakan `indobenchmark/indobert-base-p2`
 - **Cross-Encoder Reranking**: Untuk meningkatkan akurasi retrieval
-- **Multi-LLM Support**: Gemini, OpenAI, Anthropic, Ollama, Qwen, Llama
+- **LLM Support**: Google Gemini (cloud) dan Ollama (lokal)
 
 ## 📚 Dokumentasi
 
@@ -49,12 +49,8 @@ rag-model/
 git clone https://github.com/JovanAditya/rag-model.git
 cd rag-model
 
-# Install menggunakan environment.yml (RECOMMENDED)
-conda env create -f environment.yml
-conda activate academic-rag
-
-# (Opsional) Install GPU support untuk PyTorch
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+# Install dependencies
+pip install -r requirements.txt
 
 # Konfigurasi environment
 cp .env.example .env

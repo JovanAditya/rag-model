@@ -8,33 +8,19 @@ Buat file `.env` di folder `rag-model/`:
 
 ```env
 # Provider LLM
-LLM_PROVIDER=gemini          # gemini, openai, anthropic, ollama
+LLM_PROVIDER=gemini          # gemini atau ollama
 
 # Google Gemini (Rekomendasi)
 GEMINI_API_KEY=your-api-key
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-2.5-flash
 
 # Parameter LLM
 LLM_TEMPERATURE=0.1
 LLM_MAX_TOKENS=4000
 
 # Ollama (Lokal)
-OLLAMA_MODEL=llama2
+OLLAMA_MODEL=llama3.2:latest
 OLLAMA_BASE_URL=http://localhost:11434
-
-# OpenAI
-OPENAI_API_KEY=your-api-key
-OPENAI_MODEL=gpt-4o-mini
-
-# Anthropic
-ANTHROPIC_API_KEY=your-api-key
-ANTHROPIC_MODEL=claude-3-haiku-20240307
-
-# Qwen (Lokal)
-QWEN_MODEL=qwen3:8b
-
-# Llama (Lokal)
-LLAMA_MODEL=llama3.2:latest
 
 # Path Data
 DATA_PATH=./data
@@ -80,11 +66,12 @@ curl -X PUT "http://localhost:5001/api/chunking/config" \
 
 ### Google Gemini (Rekomendasi)
 
-Tersedia tier gratis, kualitas baik.
+Tersedia tier gratis dan Pay-as-you-go. Kualitas baik untuk bahasa Indonesia.
 
 ```env
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=your-api-key
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 ### Ollama (Lokal)
@@ -92,52 +79,13 @@ GEMINI_API_KEY=your-api-key
 Gratis, lokal, tidak perlu API key.
 
 1. Install: https://ollama.ai
-2. Pull model: `ollama pull llama2`
+2. Pull model: `ollama pull llama3.2:latest`
 3. Konfigurasi:
    ```env
    LLM_PROVIDER=ollama
-   OLLAMA_MODEL=llama2
+   OLLAMA_MODEL=llama3.2:latest
+   OLLAMA_BASE_URL=http://localhost:11434
    ```
-
-### OpenAI
-
-Berbayar, kualitas tinggi.
-
-```env
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini
-```
-
-### Anthropic
-
-Berbayar, sangat baik untuk konteks panjang.
-
-```env
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_MODEL=claude-3-haiku-20240307
-```
-
-### Qwen (Lokal)
-
-Menggunakan Ollama sebagai backend.
-
-```env
-LLM_PROVIDER=qwen
-QWEN_MODEL=qwen3:8b
-# Pastikan: ollama run qwen3:8b
-```
-
-### Llama (Lokal)
-
-Menggunakan Ollama sebagai backend.
-
-```env
-LLM_PROVIDER=llama
-LLAMA_MODEL=llama3.2:latest
-# Pastikan: ollama run llama3.2:latest
-```
 
 ## Parameter Retrieval
 

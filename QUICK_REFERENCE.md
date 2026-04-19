@@ -59,7 +59,7 @@ EMBEDDING_MODEL=indobenchmark/indobert-base-p2
 
 # LLM
 LLM_PROVIDER=gemini
-GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 ## Project Structure
