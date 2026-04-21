@@ -500,7 +500,7 @@ please say so politely and provide what information you can."""
             })
 
         # Add research/production specific data
-        if (self.research_mode or include_metrics) and not hasattr(result, 'fallback_used'):
+        if (self.research_mode or include_metrics) and not result.fallback_used:
             response["metadata"] = {
                 "retrieval_time": result.retrieval_time,
                 "generation_time": result.generation_time,
