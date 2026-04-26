@@ -221,7 +221,7 @@ class BM25Index:
             "documents_count": len(self.documents),
             "vocabulary_size": len(self.vocabulary) if self.vocabulary else 0,
             "avg_doc_length": float(self.avg_doc_length) if self.avg_doc_length else 0,
-            "avg_term_frequency": np.mean(self.doc_freqs) if len(self.doc_freqs) > 0 else 0,
+            "avg_term_frequency": float(np.mean(self.doc_freqs)) if self.doc_freqs is not None and len(self.doc_freqs) > 0 else 0,
             "k1": self.k1,
             "b": self.b,
             "ngram_range": self.ngram_range,

@@ -112,7 +112,7 @@ class LLMGenerator:
         if context:
             full_prompt = self._build_prompt_with_context(prompt, context)
         else:
-            full_prompt = prompt
+            full_prompt = self._build_prompt_without_context(prompt)
 
         self.logger.info(
             f"[LLMGenerator] Generating response for {self.config.model_type}"
@@ -153,25 +153,44 @@ class LLMGenerator:
             )
             raise
 
+    def _get_system_persona(self) -> str:
+        """SIAssist System Persona Definition."""
+        return """Kamu adalah SIAssist, Asisten Virtual Cerdas resmi untuk Tata Usaha Fakultas Ilmu Komputer (FASILKOM).
+Tugas utamamu adalah membantu memberikan informasi akademik, layanan administrasi, dan birokrasi kampus.
+
+BATASAN & ATURAN KETAT:
+1. Jika pengguna menyapa (misal: "halo", "selamat pagi"), balas dengan sapaan ramah dan tawarkan bantuan terkait urusan Fasilkom.
+2. JANGAN PERNAH membantu mengerjakan tugas kuliah, membuat kode pemrograman, menterjemahkan atau menjawab soal ujian. Jika diminta, tolak dengan sopan dan ingatkan bahwa kamu adalah chatbot khusus informasi administrasi/akademik.
+3. Tolak pertanyaan yang sama sekali tidak ada hubungannya dengan perkuliahan, Fasilkom, atau kampus.
+4. Jawab secara natural, informatif, dan tidak kaku. Jangan menggunakan frase pembuka robotik seperti "Berdasarkan dokumen..." atau "Berdasarkan konteks yang diberikan..."."""
+
+    def _build_prompt_without_context(self, prompt: str) -> str:
+        """Build prompt when no context is retrieved (e.g. greetings or off-topic)."""
+        persona = self._get_system_persona()
+        return f"""{persona}
+
+Informasi di database: (Tidak ada data tambahan ditemukan)
+
+Pertanyaan/Pernyataan Pengguna: {prompt}
+
+Jawaban (SIAssist):"""
+
     def _build_prompt_with_context(self, prompt: str, context: str) -> str:
         """Build prompt with context."""
         max_context_chars = 3000
         if len(context) > max_context_chars:
             context = truncate_context([context], max_context_chars)
 
-        return f"""Kamu adalah asisten akademik. Jawab pertanyaan berikut secara LANGSUNG dan JELAS.
+        persona = self._get_system_persona()
+        return f"""{persona}
 
-ATURAN PENTING:
-- JANGAN gunakan kata pembuka seperti "Berdasarkan konteks...", "Menurut dokumen...", atau sejenisnya
-- Langsung jawab poinnya
-- Gunakan numbered list jika ada beberapa poin
-
-Informasi yang tersedia:
+Informasi dari Arsip TU yang tersedia:
 {context}
 
-Pertanyaan: {prompt}
+Pertanyaan/Pernyataan Pengguna: {prompt}
 
-Jawaban:"""
+Jawaban (SIAssist):"""
+
 
     def _generate_gemini(
         self,
