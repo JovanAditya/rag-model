@@ -21,10 +21,11 @@ class PromptTemplate:
         """Load prompt templates based on language."""
         if self.language == "id":
             return {
-                "qa_context": """Kamu adalah asisten akademik yang membantu mahasiswa. Jawab pertanyaan berikut secara langsung, jelas, dan lengkap berdasarkan informasi yang tersedia.
+                "qa_context": """Kamu adalah asisten akademik yang membantu mahasiswa. Jawab pertanyaan berikut secara langsung, jelas, dan lengkap.
 
 PENTING:
-- Jawab langsung tanpa kata pembuka seperti "Berdasarkan konteks..." atau "Menurut dokumen..."
+- Langsung jawab inti pertanyaannya tanpa frase pembuka apapun
+- Jawab langsung tanpa kata pembuka seperti "Berdasarkan konteks...", "Berdasarkan informasi yang tersedia...", atau "Menurut dokumen..."
 - Gunakan format yang mudah dibaca (numbered list, bullet points jika perlu)
 - Jika ada beberapa poin, gunakan penomoran
 
@@ -41,7 +42,7 @@ Pertanyaan: {question}
 
 Silakan coba dengan pertanyaan yang lebih spesifik atau hubungi administrator.""",
 
-                "research_mode": """Jawab pertanyaan berikut secara komprehensif dan terstruktur berdasarkan informasi akademik yang tersedia.
+                "research_mode": """Jawab pertanyaan berikut secara komprehensif dan terstruktur menggunakan informasi akademik di bawah ini.
 
 Informasi yang tersedia:
 {context}

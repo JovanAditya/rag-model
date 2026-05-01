@@ -420,19 +420,15 @@ class AcademicRAG:
         return source_docs
 
     def _generate_answer(self, question: str, context: str) -> str:
-        """Generate answer using LLM."""
+        """Generate answer using LLM.
+        
+        Delegates prompt construction to LLMGenerator which applies
+        the SIAssist persona and formatting rules consistently.
+        """
         if not self._llm_generator:
             raise RAGError("LLM generator not initialized")
 
-        prompt = f"""Context: {context}
-
-Question: {question}
-
-Based on the context provided, please answer the question in Bahasa Indonesia.
-If the context doesn't contain enough information to answer the question,
-please say so politely and provide what information you can."""
-
-        result = self._llm_generator.generate(prompt=prompt, context=context)
+        result = self._llm_generator.generate(prompt=question, context=context)
         return result.get('answer', 'Maaf, saya tidak dapat memberikan jawaban yang memadai.')
 
     def _create_empty_result(self, question: str, reason: str) -> RAGResult:
