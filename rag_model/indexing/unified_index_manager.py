@@ -580,59 +580,7 @@ class UnifiedIndexManager:
             logger.error(f"Error getting unified stats: {e}")
             return {"error": str(e)}
 
-    def health_check(self) -> Dict[str, Any]:
-        """Check health of unified index system."""
-        health = {
-            "status": "healthy",
-            "components": {
-                "vector_store": "unknown",
-                "bm25_index": "unknown",
-                "document_consistency": "unknown"
-            },
-            "issues": []
-        }
 
-        try:
-            # Check vector store
-            if self.vector_store:
-                vector_stats = self.vector_store.get_stats()
-                if vector_stats.get("document_count", 0) > 0:
-                    health["components"]["vector_store"] = "healthy"
-                else:
-                    health["components"]["vector_store"] = "empty"
-                    health["issues"].append("Vector store has no documents")
-            else:
-                health["components"]["vector_store"] = "not_initialized"
-                health["issues"].append("Vector store not initialized")
-
-            # Check BM25 index
-            if self.bm25_index:
-                bm25_stats = self.bm25_index.get_stats()
-                if bm25_stats.get("documents_count", 0) > 0:
-                    health["components"]["bm25_index"] = "healthy"
-                else:
-                    health["components"]["bm25_index"] = "empty"
-                    health["issues"].append("BM25 index has no documents")
-            else:
-                health["components"]["bm25_index"] = "not_initialized"
-                health["issues"].append("BM25 index not initialized")
-
-            # Check document consistency
-            if self.indexed_documents:
-                health["components"]["document_consistency"] = "consistent"
-            else:
-                health["components"]["document_consistency"] = "no_documents"
-                health["issues"].append("No documents indexed")
-
-            # Overall status
-            if health["issues"]:
-                health["status"] = "degraded" if len(health["issues"]) < 3 else "unhealthy"
-
-        except Exception as e:
-            health["status"] = "error"
-            health["error"] = str(e)
-
-        return health
 
     def clear_indexes(self) -> None:
         """Clear all indexes (for rebuilding)."""
@@ -850,9 +798,10 @@ class UnifiedIndexManager:
             if self.bm25_index is not None:
                 try:
                     # Check if BM25 index has documents
-                    if hasattr(self.bm25_index, 'document_count'):
+                    bm25_stats = self.bm25_index.get_stats()
+                    if bm25_stats.get("documents_count", 0) > 0:
                         health_status["components"]["bm25_index"]["available"] = True
-                        health_status["components"]["bm25_index"]["document_count"] = self.bm25_index.document_count
+                        health_status["components"]["bm25_index"]["document_count"] = bm25_stats["documents_count"]
                     else:
                         health_status["components"]["bm25_index"]["available"] = False
                         health_status["issues"].append("BM25 index document count not available")

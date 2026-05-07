@@ -145,17 +145,44 @@ class IndexBuilder:
                 cache_dir=cache_dir
             )
 
+            # Initialize indexes before health check
+            index_manager.initialize_indexes()
+
             # Check unified index health
             health = index_manager.health_check()
 
             if health["status"] == "healthy":
                 print("✅ Unified index verification PASSED")
                 stats = index_manager.get_unified_stats()
-                print(f"📊 Total documents: {stats['unified_manager']['indexed_documents']}")
-                if 'vector_store' in stats:
-                    print(f"📊 Vector store documents: {stats['vector_store'].get('document_count', 'N/A')}")
-                if 'bm25_index' in stats:
-                    print(f"📊 BM25 vocabulary: {stats['bm25_index'].get('vocabulary_size', 'N/A')}")
+
+                # Display structured index statistics
+                print(f"\n{'─'*60}")
+                print(f"📊 TAHAP 3: STATISTIK INDEKS")
+                print(f"{'─'*60}")
+
+                # BM25 Index stats
+                bm25_stats = stats.get('bm25_index', {})
+                print(f"\n   ╔{'═'*56}╗")
+                print(f"   ║ {'BM25 INDEX (scikit-learn TfidfVectorizer)':<54s} ║")
+                print(f"   ╠{'═'*56}╣")
+                print(f"   ║ {'Jumlah dokumen':<30s} : {str(bm25_stats.get('documents_count', 'N/A')):<22s} ║")
+                print(f"   ║ {'Ukuran vocabulary':<30s} : {str(bm25_stats.get('vocabulary_size', 'N/A')):<22s} ║")
+                print(f"   ║ {'Parameter k1':<30s} : {str(bm25_stats.get('k1', '1.5')):<22s} ║")
+                print(f"   ║ {'Parameter b':<30s} : {str(bm25_stats.get('b', '0.75')):<22s} ║")
+                print(f"   ║ {'N-gram range':<30s} : {str(bm25_stats.get('ngram_range', '(1, 2)')):<22s} ║")
+                print(f"   ╚{'═'*56}╝")
+
+                # Vector Store stats
+                vector_stats = stats.get('vector_store', {})
+                print(f"\n   ╔{'═'*56}╗")
+                print(f"   ║ {'VECTOR INDEX (ChromaDB + IndoBERT)':<54s} ║")
+                print(f"   ╠{'═'*56}╣")
+                print(f"   ║ {'Collection name':<30s} : {str(vector_stats.get('collection_name', 'N/A')):<22s} ║")
+                print(f"   ║ {'Jumlah embedding':<30s} : {str(vector_stats.get('document_count', 'N/A')):<22s} ║")
+                print(f"   ║ {'Dimensi vektor':<30s} : {'768':<22s} ║")
+                print(f"   ║ {'Model embedding':<30s} : {'indobert-base-p2':<22s} ║")
+                print(f"   ╚{'═'*56}╝")
+
                 return True
             else:
                 print("❌ Unified index verification FAILED")
@@ -242,13 +269,38 @@ class IndexBuilder:
 
                 if health["status"] == "healthy":
                     logger.info("✅ Unified index built and verified successfully!")
-                    stats = index_manager.get_unified_stats()
-                    logger.info(f"📊 Total documents: {stats['unified_manager']['indexed_documents']}")
-                    if 'vector_store' in stats:
-                        logger.info(f"📊 Vector store documents: {stats['vector_store'].get('document_count', 'N/A')}")
-                    if 'bm25_index' in stats:
-                        logger.info(f"📊 BM25 vocabulary: {stats['bm25_index'].get('vocabulary_size', 'N/A')}")
-                else:
+
+                stats = index_manager.get_unified_stats()
+
+                # Display structured index statistics
+                print(f"\n{'─'*60}")
+                print(f"📊 TAHAP 3: STATISTIK INDEKS")
+                print(f"{'─'*60}")
+
+                # BM25 Index stats
+                bm25_stats = stats.get('bm25_index', {})
+                print(f"\n   ╔{'═'*56}╗")
+                print(f"   ║ {'BM25 INDEX (scikit-learn TfidfVectorizer)':<54s} ║")
+                print(f"   ╠{'═'*56}╣")
+                print(f"   ║ {'Jumlah dokumen':<30s} : {str(bm25_stats.get('documents_count', 'N/A')):<22s} ║")
+                print(f"   ║ {'Ukuran vocabulary':<30s} : {str(bm25_stats.get('vocabulary_size', 'N/A')):<22s} ║")
+                print(f"   ║ {'Parameter k1':<30s} : {str(bm25_stats.get('k1', '1.5')):<22s} ║")
+                print(f"   ║ {'Parameter b':<30s} : {str(bm25_stats.get('b', '0.75')):<22s} ║")
+                print(f"   ║ {'N-gram range':<30s} : {str(bm25_stats.get('ngram_range', '(1, 2)')):<22s} ║")
+                print(f"   ╚{'═'*56}╝")
+
+                # Vector Store stats
+                vector_stats = stats.get('vector_store', {})
+                print(f"\n   ╔{'═'*56}╗")
+                print(f"   ║ {'VECTOR INDEX (ChromaDB + IndoBERT)':<54s} ║")
+                print(f"   ╠{'═'*56}╣")
+                print(f"   ║ {'Collection name':<30s} : {str(vector_stats.get('collection_name', 'N/A')):<22s} ║")
+                print(f"   ║ {'Jumlah embedding':<30s} : {str(vector_stats.get('document_count', 'N/A')):<22s} ║")
+                print(f"   ║ {'Dimensi vektor':<30s} : {'768':<22s} ║")
+                print(f"   ║ {'Model embedding':<30s} : {'indobert-base-p2':<22s} ║")
+                print(f"   ╚{'═'*56}╝")
+
+                if health.get("status") != "healthy":
                     logger.warning("⚠️  Index built but verification found issues:")
                     logger.warning(f"   Status: {health['status']}")
                     for issue in health.get('issues', []):

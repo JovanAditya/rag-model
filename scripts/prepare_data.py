@@ -189,14 +189,26 @@ class DataPreparator:
                 pages = pdf.pages
                 text_content = []
 
+                print(f"\n{'─'*60}")
+                print(f"📖 TAHAP 1: EKSTRAKSI TEKS — {pdf_path.name}")
+                print(f"{'─'*60}")
+                print(f"   Ukuran file : {pdf_path.stat().st_size / 1024:.1f} KB")
+                print(f"   Total halaman: {len(pages)}")
+                print()
+
                 for i, page in enumerate(pages):
                     # Extract text
-                    if page.extract_text():
+                    page_text = page.extract_text()
+                    if page_text:
                         text_content.append({
                             "page": i + 1,
-                            "text": page.extract_text(),
+                            "text": page_text,
                             "bbox": page.bbox
                         })
+                        preview = page_text[:80].replace('\n', ' ')
+                        print(f"   Halaman {i+1:>3d} │ {len(page_text):>5d} karakter │ \"{preview}...\"")
+                    else:
+                        print(f"   Halaman {i+1:>3d} │     0 karakter │ (tidak ada teks)")
 
                     # Extract images using Pillow
                     page_images = self._extract_images_from_page(page, i)
@@ -212,13 +224,32 @@ class DataPreparator:
                     "has_images": len(extracted_images) > 0
                 })
 
-                # Log image extraction summary
+                # Image detection summary
+                print(f"\n{'─'*60}")
+                print(f"🖼️  DETEKSI GAMBAR — {pdf_path.name}")
+                print(f"{'─'*60}")
                 if extracted_images:
-                    logger.info(f"   🖼️  Extracted {len(extracted_images)} images from {pdf_path.name}")
-                    for img in extracted_images[:3]:  # Log first 3 images
-                        logger.info(f"      Page {img['page']}: {img['width']}x{img['height']} {img['mode']} image")
-                    if len(extracted_images) > 3:
-                        logger.info(f"      ... and {len(extracted_images)-3} more images")
+                    print(f"   {'No':>3s} │ {'Halaman':>7s} │ {'Dimensi':>12s} │ {'Mode':>6s} │ Format Output")
+                    print(f"   {'───':>3s}─┼─{'───────':>7s}─┼─{'────────────':>12s}─┼─{'──────':>6s}─┼─{'─────────────'}")
+                    for idx, img in enumerate(extracted_images):
+                        print(f"   {idx+1:>3d} │ {img['page']:>7d} │ {img['width']:>5d}x{img['height']:<5d} │ {img.get('mode','?'):>6s} │ PNG")
+                else:
+                    print("   (Tidak ada gambar terdeteksi)")
+
+                # Combined text preview
+                print(f"\n{'─'*60}")
+                print(f"📄 PENGGABUNGAN TEKS — {pdf_path.name}")
+                print(f"{'─'*60}")
+                word_count = len(full_text.split())
+                print(f"   Total karakter : {len(full_text):,}")
+                print(f"   Estimasi kata  : {word_count:,}")
+                print(f"   Halaman dengan teks: {len(text_content)} / {len(pages)}")
+                if full_text.strip():
+                    print(f"\n   Preview awal (200 karakter):")
+                    print(f"   ┌{'─'*56}┐")
+                    for line in full_text[:200].split('\n')[:5]:
+                        print(f"   │ {line[:54]:<54s} │")
+                    print(f"   └{'─'*56}┘")
 
             if len(full_text.strip()) == 0 and not extracted_images:
                 logger.warning(f"⚠️  No text or images extracted from {pdf_path.name}")
@@ -348,6 +379,32 @@ class DataPreparator:
                 metadata["processing_status"] = "chunking_failed"
                 all_metadata.append(metadata)
                 continue
+
+            # Display chunking results
+            print(f"\n{'─'*60}")
+            print(f"✂️  TAHAP 2: CHUNKING — {pdf_path.name}")
+            print(f"{'─'*60}")
+            print(f"   Chunk size  : {self.chunk_size} token")
+            print(f"   Overlap     : {self.chunk_overlap} token")
+            print(f"   Total chunk : {len(chunks)}")
+            print()
+            print(f"   {'No':>3s} │ {'Chunk ID':<45s} │ {'Token':>5s} │ {'Karakter':>8s}")
+            print(f"   {'───':>3s}─┼─{'─'*45}─┼─{'─────':>5s}─┼─{'────────':>8s}")
+            for idx, chunk in enumerate(chunks[:8]):  # Show first 8 chunks
+                chunk_id = chunk.get('metadata', {}).get('chunk_index', idx)
+                token_count = chunk['metadata'].get('token_count', '?')
+                char_count = len(chunk['text'])
+                print(f"   {idx:>3d} │ chunk_{str(chunk_id):<40s} │ {str(token_count):>5s} │ {char_count:>8d}")
+            if len(chunks) > 8:
+                print(f"   ... │ {'('+str(len(chunks)-8)+' chunk lainnya)':<45s} │       │         ")
+
+            # Demonstrate overlap between chunks
+            if len(chunks) >= 2:
+                print(f"\n   📎 Demonstrasi Overlap (Chunk 0 → Chunk 1):")
+                c0_end = chunks[0]['text'][-120:].replace('\n', ' ')
+                c1_start = chunks[1]['text'][:120].replace('\n', ' ')
+                print(f"   Akhir Chunk 0 : \"...{c0_end}\"")
+                print(f"   Awal Chunk 1  : \"{c1_start}...\"")
 
             # Add chunks to collection
             all_chunks.extend(chunks)
