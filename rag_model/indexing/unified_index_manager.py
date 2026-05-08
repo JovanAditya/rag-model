@@ -51,7 +51,7 @@ class UnifiedIndexManager:
         self.vector_config = vector_config
         self.bm25_config = bm25_config
         self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize indexes (but don't load data yet)
         self.vector_store = None

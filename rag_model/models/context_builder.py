@@ -155,13 +155,11 @@ class ContextBuilder:
         if not text:
             return ""
 
-        # Get document name from metadata (best practice: use filename or source)
-        doc_name = self._get_document_name(metadata, title, doc_num)
-        
-        # Start with document identifier using actual name
-        formatted_parts = [f"📄 {doc_name}"]
+        # Use generic document label to prevent LLM from referencing
+        # internal filenames or metadata in its answers
+        formatted_parts = [f"[Dokumen Referensi {doc_num}]"]
 
-        # Add page info if available (inline with doc name)
+        # Add page info if available (inline with doc label)
         page_numbers = metadata.get('page_numbers', []) or metadata.get('page', None)
         if page_numbers:
             if isinstance(page_numbers, list) and page_numbers:
@@ -169,23 +167,42 @@ class ContextBuilder:
             elif isinstance(page_numbers, int):
                 formatted_parts[0] += f" (Halaman {page_numbers})"
 
-        # Add score if enabled
-        if self.config.include_scores:
-            formatted_parts.append(f"Relevansi: {score:.2f}")
+        # NOTE: Relevance scores are intentionally NOT included in the
+        # LLM-facing context. They are internal metadata used for ranking
+        # and should not leak into the model's answers. Scores are still
+        # available in the pipeline's metadata/sources output.
 
         # Add the actual text
         formatted_parts.append(f"\n{text}")
 
         return "\n".join(formatted_parts)
 
+    @staticmethod
+    def _is_hashed_filename(filename: str) -> bool:
+        """
+        Check if a filename is a system-generated hash (not human-readable).
+        
+        Hashed filenames from Laravel upload follow the pattern:
+        <hex_uniqid>_<timestamp>.<ext>  (e.g., 69f37b44dae49_1777564484.pdf)
+        
+        These should NOT be shown to the LLM as they are internal identifiers.
+        """
+        import re
+        # Pattern: hex characters (10+) _ digits . extension
+        return bool(re.match(r'^[0-9a-f]{10,}_\d+\.\w+$', filename, re.IGNORECASE))
+
     def _get_document_name(self, metadata: Dict[str, Any], title: str, doc_num: int) -> str:
         """
         Extract best document name from metadata.
         
+        Returns a generic label ("Dokumen Referensi N") if the filename is a
+        system-generated hash, since the pipeline does not have access to the
+        Laravel database where the human-readable original filename is stored.
+        
         Priority:
-        1. original_filename (original uploaded filename)
-        2. filename (processed filename)
-        3. source (source path - extract basename)
+        1. original_filename — only if NOT a hashed/system filename
+        2. filename — only if NOT a hashed/system filename
+        3. source basename — only if NOT a hashed/system filename
         4. title
         5. Fallback to generic numbering
         
@@ -199,34 +216,29 @@ class ContextBuilder:
         """
         import os
         
-        # Priority 1: original_filename 
+        # Priority 1: original_filename (skip if hashed)
         original_filename = metadata.get('original_filename', '')
-        if original_filename:
+        if original_filename and not self._is_hashed_filename(original_filename):
             return original_filename
         
-        # Priority 2: filename
+        # Priority 2: filename (skip if hashed)
         filename = metadata.get('filename', '')
-        if filename:
+        if filename and not self._is_hashed_filename(filename):
             return filename
         
-        # Priority 3: source (extract basename)
+        # Priority 3: source basename (skip if hashed)
         source = metadata.get('source', '')
         if source:
             basename = os.path.basename(source)
-            if basename:
+            if basename and not self._is_hashed_filename(basename):
                 return basename
         
         # Priority 4: title
         if title:
             return title
         
-        # Priority 5: document_id with better format
-        doc_id = metadata.get('document_id', '')
-        if doc_id:
-            return f"Dokumen: {doc_id}"
-        
-        # Fallback
-        return f"Dokumen {doc_num}"
+        # Fallback: generic label (safe, no internal metadata leaked)
+        return f"Dokumen Referensi {doc_num}"
 
     def build_comparison_context(
         self,
