@@ -136,7 +136,8 @@ class CrossEncoderReranker:
 
         try:
             # Prepare query-document pairs for scoring
-            doc_texts = [doc.get('text', '') for doc in documents]
+            # Support both 'text' and 'content' keys
+            doc_texts = [doc.get('text', doc.get('content', '')) for doc in documents]
             query_doc_pairs = [(query, doc_text) for doc_text in doc_texts]
 
             # Predict scores in batches
@@ -152,6 +153,103 @@ class CrossEncoderReranker:
                 reranked_doc['rerank_improvement'] = float(score) - doc.get('score', 0.0)
                 reranked_docs.append(reranked_doc)
 
+            # Post-reranking heuristic boost for acronyms and specific terms
+            import re
+            acronyms = re.findall(r'\b[A-Z]{2,5}\b', query)
+            if acronyms:
+                self.logger.info(f"[CrossEncoderReranker] Boosting documents containing acronyms: {acronyms}")
+                for doc in reranked_docs:
+                    content = doc.get('content', doc.get('text', '')).lower()
+                    original_content = doc.get('content', doc.get('text', ''))
+                    
+                    # Check for exact acronym match (case-sensitive) or word-boundary match in content
+                    matched_acros = []
+                    for acro in acronyms:
+                        # Case sensitive check first
+                        if acro in original_content:
+                            matched_acros.append(acro)
+                        # Case insensitive check with word boundaries for technical terms
+                        elif re.search(rf'\b{acro}\b', content, re.IGNORECASE):
+                            matched_acros.append(acro)
+                    
+                    if matched_acros:
+                        # Scale boost based on number of matches or just a flat significant boost
+                        doc['cross_encoder_score'] += 1.5 
+                        if 'metadata' not in doc:
+                            doc['metadata'] = {}
+                        doc['metadata']['acronym_boosted'] = True
+                        doc['metadata']['matched_acronyms'] = matched_acros
+
+            # Faculty and domain specific boosting
+            query_lower = query.lower()
+            fasilkom_terms = ['fasilkom', 'teknik informatika', 'sistem informasi', 'ilmu komputer', 'fakultas ilmu komputer']
+            # Specific academic terms that should trigger faculty prioritization
+            fasilkom_triggers = ['ta', 'kp', 'skpi', 'mpti', 'klik', 'sidang', 'tugas akhir', 'kerja praktek', 'yudisium']
+            is_fasilkom_query = any(term in query_lower for term in fasilkom_triggers)
+            
+            # Authoritative Document Boost (Sync with UnifiedIndexManager)
+            # Detect domain for context-aware boosting
+            is_ta_trigger = any(term in query_lower for term in ['tugas akhir', 'skripsi', 'sidang akhir', 'yudisium'])
+            is_kp_trigger = any(term in query_lower for term in ['kerja praktek', 'magang', 'mbkm', 'sosialisasi kp']) or bool(re.search(r'\bkp\b', query_lower))
+            is_mpti_trigger = any(term in query_lower for term in ['mpti', 'metodologi penelitian', 'proposal', 'sempro', 'apa style']) or bool(re.search(r'\bmpti\b', query_lower))
+            is_ult_trigger = any(term in query_lower for term in ['ult', 'unit layanan terpadu', 'akun', 'password', 'login', 'pendaftaran']) or bool(re.search(r'\bult\b', query_lower))
+            is_pasca_trigger = any(term in query_lower for term in ['pasca sidang', 'setelah sidang', 'setelah lulus', 'revisi', '14 hari', 'toefl', 'toeic', 'skpi', 'yudisium'])
+
+            for doc in reranked_docs:
+                metadata = doc.get('metadata', {}) or {}
+                source_file = (metadata.get('original_filename') or metadata.get('source') or metadata.get('source_document') or '').lower()
+                
+                authoritative_boost = 0.0
+                # Match document to its respective domain trigger
+                if is_pasca_trigger or is_ta_trigger:
+                    if any(kw in source_file for kw in ['arahan pascasidang', 'press arahan', '69fd85f232c75']):
+                        authoritative_boost = 5.0
+                if is_mpti_trigger:
+                    if any(kw in source_file for kw in ['panduan mpti', 'mpti 2023', '69fd85f237c35']):
+                        authoritative_boost = 5.0
+                if is_kp_trigger:
+                    if any(kw in source_file for kw in ['sosialisasi kp', 'kerja praktek', '69fd85f23b6f2', '69fd85f2279b3']):
+                        authoritative_boost = 5.0
+                if is_ult_trigger:
+                    if any(kw in source_file for kw in ['buku panduan ult', 'panduan ult mahasiswa', '69fd85f22400f']):
+                        authoritative_boost = 5.0
+                if is_ta_trigger:
+                    if any(kw in source_file for kw in ['panduan tugas akhir', 'skripsi', '69fd85f22e22c']):
+                        authoritative_boost = 5.0
+                
+                if authoritative_boost > 0:
+                    doc['cross_encoder_score'] += authoritative_boost
+                    if 'metadata' not in doc:
+                        doc['metadata'] = {}
+                    doc['metadata']['authoritative_boosted'] = True
+
+            # Numeric density boost for quantitative questions
+            if any(term in query_lower for term in ['berapa', 'jumlah', 'minimal', 'maksimal', 'durasi', 'skor']):
+                for doc in reranked_docs:
+                    content_lower = doc.get('content', doc.get('text', '')).lower()
+                    if re.search(r'\d+', content_lower):
+                        # Boost if it contains numbers and keywords like 'minimal' or 'kali'
+                        if any(term in content_lower for term in ['minimal', 'kali', 'bulan', 'hari', 'skor', 'ipk']):
+                            doc['cross_encoder_score'] += 1.0
+
+            # Semantic Alias Boost for Edge Cases (e.g., Form Yudisium)
+            # The actual list of documents for Form Yudisium is usually split across chunks that don't contain the word "yudisium".
+            if 'form yudisium' in query_lower or 'berkas yudisium' in query_lower:
+                for doc in reranked_docs:
+                    content_lower = doc.get('content', doc.get('text', '')).lower()
+                    # Check for signature items in the "Contoh Berkas" list
+                    is_yudisium_list = (
+                        'tanda terima penyerahan tugas akhir dari tata usaha' in content_lower or
+                        'bukti transfer sumbangan buku alumni' in content_lower or
+                        ('verifikasi data mahasiswa' in content_lower and 'sudah sesuai' in content_lower) or
+                        ('berkas haki' in content_lower and 'lampirkan ktp' in content_lower)
+                    )
+                    if is_yudisium_list:
+                        doc['cross_encoder_score'] += 20.0
+                        if 'metadata' not in doc:
+                            doc['metadata'] = {}
+                        doc['metadata']['semantic_alias_boosted'] = True
+
             # Sort by cross-encoder score descending
             reranked_docs.sort(key=lambda x: x['cross_encoder_score'], reverse=True)
 
@@ -163,13 +261,51 @@ class CrossEncoderReranker:
             if top_k is not None and len(reranked_docs) > top_k:
                 reranked_docs = reranked_docs[:top_k]
 
-            # Update main score to cross-encoder score
+            # Check if all scores are exactly 0.0 (indicates prediction failure)
+            all_zeros = all(doc['cross_encoder_score'] == 0.0 for doc in reranked_docs)
+            
+            # Update main score with hybrid tie-breaker and retrieval-stage boosts
+            # We incorporate the boost_factor from UnifiedIndexManager to ensure
+            # that domain isolation penalties (like KILL:7_DAYS) are preserved.
+            scored_docs = []
             for doc in reranked_docs:
-                doc['score'] = doc['cross_encoder_score']
+                metadata = doc.get('metadata', {}) or {}
+                boost_factor = metadata.get('boost_factor', 1.0)
+                
+                # HARD KILL: If retrieval stage explicitly killed this chunk (factor < 0.1),
+                # drop it entirely to prevent it from leaking into the LLM context.
+                if boost_factor < 0.1:
+                    continue
+                
+                if all_zeros:
+                    doc['score'] = doc.get('original_score', 0.0)
+                else:
+                    # Apply the boost/penalty factor from retrieval stage to the CE score
+                    base_ce_score = doc['cross_encoder_score']
+                    effective_ce = base_ce_score + 10.0 # Shift to positive range
+                    
+                    orig_signal = doc.get('original_score', 0.0) / 10000.0
+                    doc['score'] = (effective_ce * boost_factor) + orig_signal
+                
+                scored_docs.append(doc)
+            
+            reranked_docs = scored_docs
+            
+            # If all zeros, restore original order
+            if all_zeros:
+                reranked_docs.sort(key=lambda x: x.get('original_score', 0.0), reverse=True)
+            else:
+                # Re-sort after hybrid tie-breaker and boost application
+                reranked_docs.sort(key=lambda x: x['score'], reverse=True)
 
             latency = time.time() - start_time
+            
+            # Log top 3 results for debugging
+            self.logger.info(f"[CrossEncoderReranker] Top 3 reranked docs:")
+            for i, doc in enumerate(reranked_docs[:3]):
+                self.logger.info(f"  {i+1}. ID: {doc.get('metadata', {}).get('chunk_id')} | CE Score: {doc.get('cross_encoder_score', 0.0):.4f} | Orig Score: {doc.get('original_score', 0.0):.4f}")
 
-            self.logger.info(f"[CrossEncoderReranker] Reranking completed in {latency:.3f}s")
+            self.logger.info(f"[CrossEncoderReranker] Reranking completed in {latency:.3f}s. Failed: {all_zeros}")
 
             return reranked_docs
 
