@@ -11,7 +11,7 @@ from ..utils.helpers import truncate_context
 @dataclass
 class ContextConfig:
     """Configuration for context building."""
-    max_context_length: int = 3000  # Maximum characters in context
+    max_context_length: int = 15000  # Maximum characters in context
     max_documents: int = 5  # Maximum number of documents to include
     include_metadata: bool = True  # Whether to include document metadata
     include_scores: bool = True  # Whether to include relevance scores
@@ -85,6 +85,68 @@ class ContextBuilder:
                 key=lambda x: x.get('score', 0),
                 reverse=True
             )
+
+        # Domain-aware prioritization (TA vs KP)
+        if query:
+            query_lower = query.lower()
+            is_ta_query = any(term in query_lower for term in ['tugas akhir', 'skripsi', 'ta ', ' ta', '(ta)'])
+            is_kp_query = any(term in query_lower for term in ['kerja praktek', 'magang', ' kp', 'kp ', '(kp)'])
+            is_skpi_query = any(term in query_lower for term in ['skpi', 'sertifikat', 'prestasi', 'ijazah', 'yudisium'])
+            is_mpti_query = any(term in query_lower for term in ['mpti', 'metodologi penelitian', 'proposal', 'sempro'])
+            is_ult_query = any(term in query_lower for term in ['ult', 'unit layanan terpadu', 'akun', 'password', 'login', 'bantuan'])
+            is_pasca_sidang_query = any(term in query_lower for term in ['pasca sidang', 'setelah sidang', 'revisi ta', '14 hari'])
+            is_count_query = any(term in query_lower for term in ['berapa', 'jumlah', 'minimal', 'maksimal', 'limit', 'total'])
+            
+            if is_ta_query or is_kp_query or is_skpi_query or is_mpti_query or is_ult_query or is_pasca_sidang_query or is_count_query:
+                import re
+                def domain_priority_score(doc):
+                    metadata = doc.metadata if hasattr(doc, 'metadata') else doc.get('metadata', {})
+                    source = metadata.get('original_filename', '').lower()
+                    content = (doc.text if hasattr(doc, 'text') else doc.get('text', '')).lower()
+                    
+                    # Dynamic domain detection
+                    def is_domain_match(keywords, text, min_matches=2):
+                        return sum(text.count(kw) for kw in keywords) >= min_matches
+
+                    ta_kws = ['tugas akhir', 'skripsi', 'sidang akhir', 'pengesahan ta']
+                    kp_kws = ['kerja praktek', 'magang', 'kp ']
+                    skpi_kws = ['skpi', 'sertifikat', 'prestasi', 'yudisium']
+                    mpti_kws = ['mpti', 'metodologi penelitian', 'proposal', 'sempro', 'apa style']
+                    pasca_sidang_kws = ['pasca sidang', 'revisi', '14 hari', 'setelah sidang']
+                    ult_kws = ['ult', 'layanan terpadu', 'jam operasional']
+                    fasilkom_kws = ['fasilkom', 'teknik informatika', 'sistem informasi', 'ilmu komputer']
+                    
+                    score = 0
+                    # Primary boosts
+                    if is_ta_query and (any(kw in source for kw in ta_kws) or is_domain_match(ta_kws, content)):
+                        score += 5
+                    if is_pasca_sidang_query and (any(kw in source for kw in pasca_sidang_kws) or is_domain_match(pasca_sidang_kws, content)):
+                        score += 6
+                    if is_kp_query and (any(kw in source for kw in kp_kws) or is_domain_match(kp_kws, content)):
+                        score += 4
+                    if is_mpti_query and (any(kw in source for kw in mpti_kws) or is_domain_match(mpti_kws, content)):
+                        score += 4
+                    if is_ult_query and (any(kw in source for kw in ult_kws) or is_domain_match(ult_kws, content)):
+                        score += 4
+                    
+                    # Penalties for mismatched domains
+                    if (is_ta_query or is_pasca_sidang_query) and (is_domain_match(mpti_kws, content) or is_domain_match(kp_kws, content)):
+                        score -= 5
+                    
+                    if any(kw in source for kw in fasilkom_kws):
+                        score += 2
+                        
+                    if is_count_query and re.search(r'\d+', content):
+                        score += 1
+                        
+                    return score
+
+                # Stable sort to keep original score ranking within domain priority
+                sorted_docs = sorted(
+                    sorted_docs,
+                    key=domain_priority_score,
+                    reverse=True
+                )
 
         # Limit number of documents
         docs_to_use = sorted_docs[:self.config.max_documents]

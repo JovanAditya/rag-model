@@ -12,7 +12,7 @@ import numpy as np
 from pathlib import Path
 
 try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
 except ImportError:
     print("❌ scikit-learn not available. Install with: pip install scikit-learn")
@@ -53,14 +53,14 @@ class BM25Index:
             'juga', 'yaitu', 'yakni', 'adalah', 'melalui', 'dengan', 'menggunakan'
         }
 
-        # Initialize TF-IDF vectorizer with Indonesian settings
-        self.vectorizer = TfidfVectorizer(
+        # Initialize CountVectorizer with Indonesian settings
+        # We use CountVectorizer because BM25 needs raw term frequencies
+        self.vectorizer = CountVectorizer(
             lowercase=True,
             stop_words=list(self.indonesian_stop_words),
             ngram_range=self.ngram_range,
-            min_df=1,  # Include terms that appear in at least 1 document
-            max_df=0.95,  # Exclude terms that appear in >95% of documents
-            sublinear_tf=True  # Apply sublinear TF scaling
+            min_df=1,
+            max_df=0.95
         )
 
         # Index data
@@ -73,6 +73,40 @@ class BM25Index:
         self.term_freq_matrix = None
 
         logger.info(f"BM25Index initialized (k1={k1}, b={b})")
+
+    def _clean_text(self, text: str) -> str:
+        """
+        Clean and normalize text for indexing/search.
+        Handles common PDF parsing errors like merged words (e.g., 'dicatatminimal').
+        """
+        if not text:
+            return ""
+        
+        import re
+        keywords = [
+            'minimal', 'maksimal', 'konsultasi', 'pembimbing', 'mahasiswa', 
+            'skripsi', 'praktek', 'pendaftaran', 'persyaratan', 'SKS', 'sks', 'IPK',
+            'durasi', 'dikonversi', 'bulan', 'mbkm', 'mpti', 'magang', 'sidang',
+            'revisi', 'dosen', 'tugas', 'akhir', 'judul', 'proposal', 'wisuda',
+            'mandiri', 'yudisium', 'kaprodi', 'prodi'
+        ]
+        
+        cleaned = text.lower()
+        # Add spaces around keywords if they are adjacent to other letters or digits
+        for kw in keywords:
+            # Match keyword adjacent to letter or digit
+            cleaned = re.sub(f'([a-z0-9])({kw})', r'\1 \2', cleaned)
+            cleaned = re.sub(f'({kw})([a-z0-9])', r'\1 \2', cleaned)
+        
+        # Remove extra whitespace
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        # Expand common abbreviations
+        cleaned = cleaned.replace('maks.', 'maksimal ')
+        cleaned = cleaned.replace('maks ', 'maksimal ')
+        cleaned = cleaned.replace('mhs', 'mahasiswa')
+        
+        return cleaned
 
     def index_documents(self, documents: List[Dict[str, Any]]) -> None:
         """
@@ -89,18 +123,20 @@ class BM25Index:
         self.documents = []
 
         for doc in documents:
-            text = doc.get('text', '').strip()
+            text = doc.get('text', doc.get('content', '')).strip()
             if text:
-                texts.append(text)
+                # Clean text before indexing
+                cleaned_text = self._clean_text(text)
+                texts.append(cleaned_text)
                 self.documents.append(doc)
 
         if not texts:
             logger.warning("No valid texts to index")
             return
 
-        # Fit TF-IDF vectorizer and transform
-        logger.info("Building TF-IDF matrix...")
-        tfidf_matrix = self.vectorizer.fit_transform(texts)
+        # Fit CountVectorizer and transform
+        logger.info("Building term frequency matrix...")
+        tf_matrix = self.vectorizer.fit_transform(texts)
 
         # Calculate document statistics
         self.doc_lengths = np.array([len(text.split()) for text in texts])
@@ -108,7 +144,7 @@ class BM25Index:
 
         # Get vocabulary and document frequencies
         self.vocabulary = self.vectorizer.vocabulary_
-        self.term_freq_matrix = tfidf_matrix.toarray()
+        self.term_freq_matrix = tf_matrix.toarray()
 
         # Calculate document frequencies (how many docs contain each term)
         self.doc_freqs = np.sum((self.term_freq_matrix > 0), axis=0)
@@ -173,12 +209,12 @@ class BM25Index:
 
         # Process query
         start_time = time.time()
+        cleaned_query = self._clean_text(query)
 
-        # Tokenize and filter query terms
-        query_processed = self.vectorizer.build_tokenizer()(query.lower())
+        # Use analyzer to support n-grams as configured in vectorizer
+        query_processed = self.vectorizer.build_analyzer()(cleaned_query)
         query_terms = [term for term in query_processed
-                      if term not in self.indonesian_stop_words
-                      and term in self.vocabulary]
+                      if term in self.vocabulary]
 
         if not query_terms:
             logger.warning("No valid query terms found after filtering")

@@ -33,8 +33,9 @@ class PipelineLogger:
         self.logger = logging.getLogger(name)
         self.logger.setLevel(getattr(logging, level.upper()))
 
-        # Clear existing handlers
+        # Clear existing handlers and stop propagation to prevent duplicates
         self.logger.handlers.clear()
+        self.logger.propagate = False
 
         # Console handler
         if enable_rich:

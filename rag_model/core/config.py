@@ -87,7 +87,7 @@ class RerankerConfig:
     """Configuration for cross-encoder reranking."""
     model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     max_length: int = 512
-    device: DeviceType = "cuda"
+    device: DeviceType = os.getenv("RERANKER_DEVICE", "cpu")
     batch_size: int = 32
     enable_cache: bool = True
     score_threshold: float = 0.0
@@ -101,12 +101,13 @@ class RetrievalConfig:
     use_reranking: bool = os.getenv("USE_RERANKING", "true").lower() == "true"
 
     # Advanced pipeline settings
-    bm25_k: int = 50  # Documents to retrieve from BM25
-    vector_k: int = 50  # Documents to retrieve from vector search
-    rerank_k: int = 20  # Documents to rerank
+    bm25_k: int = 100  # Increased from 50 to improve recall
+    vector_k: int = 100  # Increased from 50 to improve recall
+    rerank_k: int = 40  # Increased from 20 to provide more candidates for reranking
     rrf_k: int = 60  # RRF constant for fusion
     bm25_weight: float = float(os.getenv("BM25_WEIGHT", "0.4"))
     vector_weight: float = float(os.getenv("VECTOR_WEIGHT", "0.6"))
+    fusion_strategy: str = os.getenv("FUSION_STRATEGY", "rrf")
 
 
 @dataclass

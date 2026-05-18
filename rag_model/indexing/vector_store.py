@@ -95,6 +95,7 @@ class IndobertEmbeddingFunction(embedding_functions.EmbeddingFunction):
                 self.use_transformers = True
                 self.logger.info("IndoBERT loaded successfully using transformers library")
             except Exception as e:
+                self.model = None  # Ensure model is None on failure
                 self.logger.error(f"Failed to load IndoBERT: {e}")
                 raise RuntimeError(f"IndoBERT loading failed: {e}. Please try clearing the model cache at ~/.cache/huggingface/hub/")
         else:
@@ -250,8 +251,8 @@ class VectorStore:
             if not text:
                 continue
 
-            # Generate unique ID
-            chunk_id = str(uuid.uuid4())
+            # Generate unique ID or use existing from metadata
+            chunk_id = chunk.get('metadata', {}).get('chunk_id') or str(uuid.uuid4())
             ids.append(chunk_id)
 
             # Store document text

@@ -82,13 +82,13 @@ class AcademicRAG:
         if validate_config:
             self.config.validate()
 
-        # Initialize advanced components
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(getattr(self.config, 'log_level', logging.INFO))
-
         # Setup logging
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(getattr(logging, self.config.log_level))
+        from rag_model.utils.logging import setup_logger
+        self.logger = setup_logger(
+            name="AcademicRAG",
+            log_file="pipeline.log",
+            level=self.config.log_level
+        )
 
         # Initialize components
         self._vector_store = None
@@ -210,6 +210,10 @@ class AcademicRAG:
             try:
                 # Create reranker config with appropriate device
                 from ..core.config import RerankerConfig
+                from ..models.reranker import CrossEncoderReranker
+                import inspect
+                self.logger.info(f"[DEBUG] Reranker source file: {inspect.getfile(CrossEncoderReranker)}")
+                
                 reranker_config = RerankerConfig(
                     device=self.config.embedding.device
                 )
@@ -366,16 +370,23 @@ class AcademicRAG:
             if not self._unified_index_manager:
                 raise RAGError("Unified index manager not initialized")
 
-            # Use unified search with RRF fusion
+            # Use unified search with configured fusion strategy
             search_results = self._unified_index_manager.search_unified(
                 query=question,
                 k=max_results,
+                vector_k=self.config.retrieval.vector_k,
+                bm25_k=self.config.retrieval.bm25_k,
                 vector_weight=self.config.retrieval.vector_weight,
                 bm25_weight=self.config.retrieval.bm25_weight,
-                strategy="rrf"
+                strategy=self.config.retrieval.fusion_strategy
             )
 
             docs = search_results["results"]
+
+            # Log top retrieved documents for debugging
+            self.logger.info(f"[Retrieval] Top {min(10, len(docs))} retrieved docs before reranking:")
+            for i, doc in enumerate(docs[:10]):
+                self.logger.info(f"  {i+1}. ID: {doc.get('metadata', {}).get('chunk_id')} | Score: {doc.get('score', 0.0):.4f}")
 
             # Apply reranking if enabled
             if self.config.retrieval.use_reranking and self._reranker:
@@ -383,9 +394,11 @@ class AcademicRAG:
                 rerank_results = self._unified_index_manager.search_unified(
                     query=question,
                     k=self.config.retrieval.rerank_k,
+                    vector_k=self.config.retrieval.vector_k,
+                    bm25_k=self.config.retrieval.bm25_k,
                     vector_weight=self.config.retrieval.vector_weight,
                     bm25_weight=self.config.retrieval.bm25_weight,
-                    strategy="rrf"
+                    strategy=self.config.retrieval.fusion_strategy
                 )
 
                 # Rerank documents (rerank expects list of dicts with 'text' field)
@@ -581,9 +594,17 @@ class AcademicRAG:
         if not result.sources:
             return 0.0
 
-        # Average score of top 3 sources
+        # Normalisasi skor menggunakan fungsi sigmoid (1 / (1 + exp(-x))) 
+        # agar skor Cross-Encoder (yang bisa negatif) terpetakan ke range 0-1.
+        import math
+        def normalize(s):
+            try:
+                return 1 / (1 + math.exp(-s))
+            except:
+                return 0.0
+
         top_sources = sorted(result.sources, key=lambda x: getattr(x, 'score', 0.0), reverse=True)[:3]
-        avg_score = sum(getattr(source, 'score', 0.0) for source in top_sources) / len(top_sources)
+        avg_score = sum(normalize(getattr(source, 'score', 0.0)) for source in top_sources) / len(top_sources)
 
         # Adjust based on retrieval time (faster = more confident)
         time_factor = min(1.0, 2.0 / max(result.total_time, 0.5))
