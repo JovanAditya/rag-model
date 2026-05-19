@@ -358,12 +358,15 @@ class VectorStore:
                 documents = results['documents'][0]
                 distances = results['distances'][0]
                 metadatas = results['metadatas'][0] if results['metadatas'] else [{}] * len(documents)
+                ids = results['ids'][0] if results['ids'] else [f"doc_{i}" for i in range(len(documents))]
 
-                for doc, dist, metadata in zip(documents, distances, metadatas):
+                for doc, dist, metadata, doc_id in zip(documents, distances, metadatas, ids):
                     # Convert distance to similarity score (cosine distance -> cosine similarity)
                     score = 1 - dist if dist <= 2 else 0  # Clamp to [0, 1] range
 
                     formatted_results.append({
+                        'id': doc_id,
+                        'chunk_id': doc_id,
                         'text': doc,
                         'score': float(score),
                         'distance': float(dist),

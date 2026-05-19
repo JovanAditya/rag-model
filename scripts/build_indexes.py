@@ -157,7 +157,7 @@ class IndexBuilder:
 
                 # Display structured index statistics
                 print(f"\n{'─'*60}")
-                print(f"📊 TAHAP 3: STATISTIK INDEKS")
+                print(f"📊 STATISTIK INDEKS")
                 print(f"{'─'*60}")
 
                 # BM25 Index stats
@@ -274,7 +274,7 @@ class IndexBuilder:
 
                 # Display structured index statistics
                 print(f"\n{'─'*60}")
-                print(f"📊 TAHAP 3: STATISTIK INDEKS")
+                print(f"📊 STATISTIK INDEKS")
                 print(f"{'─'*60}")
 
                 # BM25 Index stats
