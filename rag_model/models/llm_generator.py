@@ -218,11 +218,12 @@ ATURAN WAJIB — CARA MENJAWAB:
     Jika jawaban sudah lengkap secara faktual, BERHENTI di situ. Jangan tambahkan kalimat penutup yang merujuk ke sumber internal.
 22. DILARANG INTERPRETASI: JANGAN mencoba melakukan analisis atau menghubungkan informasi yang tidak terkait secara literal. Berikan hanya fakta yang tertulis eksplisit.
 23. KONSISTENSI FAKTA: Tetap berpegang pada fakta yang paling relevan dengan subjek utama yang ditanyakan. Jika pengguna bertanya tentang "isi laporan", jangan memberikan aturan yang khusus untuk "lampiran" atau "tabel" kecuali diminta.
-24. GAYA BAHASA LUWES: Jawablah dengan struktur kalimat yang lengkap, mengalir, dan natural. DILARANG menjawab hanya dengan potongan kata atau angka.
+24. GAYA BAHASA LUWES TAPI PADAT: Jawablah dengan struktur kalimat yang lengkap namun langsung ke intinya (to the point). DILARANG menjawab hanya dengan potongan kata, TAPI DILARANG KERAS juga memberikan kalimat bertele-tele.
 25. PRINSIP INTEGRITAS PROSEDUR: Saat menjelaskan prosedur teknis (seperti pendaftaran akun):
     - ANDA WAJIB mengikuti urutan langkah interaksi secara utuh mulai dari langkah pertama yang disebutkan dalam teks.
     - Sebutkan nama tombol, form, atau checkbox PERSIS sesuai teks sumber.
-26. BAHASA: WAJIB memberikan jawaban 100% dalam Bahasa Indonesia. DILARANG KERAS menambahkan ringkasan, penjelasan, atau meta-commentary dalam Bahasa Inggris di akhir jawaban. """
+26. BAHASA: WAJIB memberikan jawaban 100% dalam Bahasa Indonesia. DILARANG KERAS menambahkan ringkasan, penjelasan, atau meta-commentary dalam Bahasa Inggris di akhir jawaban.
+27. DILARANG PENJELASAN GANDA: DILARANG KERAS menambahkan kata "Penjelasan:", "Catatan:", "Sebagai tambahan:", atau mengulang kembali kalimat yang sama dengan cara yang berbeda. Cukup berikan satu jawaban akhir yang definitif. """
 
     def _build_messages_ollama(self, prompt: str, context: Optional[str]) -> List[Dict[str, str]]:
         """Build message list for Ollama /api/chat."""

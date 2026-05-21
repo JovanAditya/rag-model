@@ -165,30 +165,24 @@ class CrossEncoderReranker:
                     # Check for exact acronym match (case-sensitive) or word-boundary match in content
                     matched_acros = []
                     for acro in acronyms:
-                        # Case sensitive check first
-                        if acro in original_content:
-                            matched_acros.append(acro)
-                        # Case insensitive check with word boundaries for technical terms
-                        elif re.search(rf'\b{acro}\b', content, re.IGNORECASE):
+                        if acro in original_content or re.search(rf'\b{acro}\b', content, re.IGNORECASE):
                             matched_acros.append(acro)
                     
                     if matched_acros:
-                        # Scale boost based on number of matches or just a flat significant boost
-                        doc['cross_encoder_score'] += 1.5 
-                        if 'metadata' not in doc:
-                            doc['metadata'] = {}
+                        # Scale boost based on number of matches to reward docs that hit multiple acronyms (e.g. MPTI and IPK)
+                        boost_val = len(matched_acros) * 2.5
+                        doc['cross_encoder_score'] += boost_val 
+                        if 'metadata' not in doc: doc['metadata'] = {}
                         doc['metadata']['acronym_boosted'] = True
                         doc['metadata']['matched_acronyms'] = matched_acros
 
             # Faculty and domain specific boosting
             query_lower = query.lower()
             fasilkom_terms = ['fasilkom', 'teknik informatika', 'sistem informasi', 'ilmu komputer', 'fakultas ilmu komputer']
-            # Specific academic terms that should trigger faculty prioritization
             fasilkom_triggers = ['ta', 'kp', 'skpi', 'mpti', 'klik', 'sidang', 'tugas akhir', 'kerja praktek', 'yudisium']
             is_fasilkom_query = any(term in query_lower for term in fasilkom_triggers)
             
             # Authoritative Document Boost (Sync with UnifiedIndexManager)
-            # Detect domain for context-aware boosting
             is_ta_trigger = any(term in query_lower for term in ['tugas akhir', 'skripsi', 'sidang akhir', 'yudisium'])
             is_kp_trigger = any(term in query_lower for term in ['kerja praktek', 'magang', 'mbkm', 'sosialisasi kp']) or bool(re.search(r'\bkp\b', query_lower))
             is_mpti_trigger = any(term in query_lower for term in ['mpti', 'metodologi penelitian', 'proposal', 'sempro', 'apa style']) or bool(re.search(r'\bmpti\b', query_lower))
@@ -200,27 +194,37 @@ class CrossEncoderReranker:
                 source_file = (metadata.get('original_filename') or metadata.get('source') or metadata.get('source_document') or '').lower()
                 
                 authoritative_boost = 0.0
-                # Match document to its respective domain trigger
-                if is_pasca_trigger or is_ta_trigger:
-                    if any(kw in source_file for kw in ['arahan pascasidang', 'press arahan', '69fd85f232c75']):
-                        authoritative_boost = 5.0
-                if is_mpti_trigger:
-                    if any(kw in source_file for kw in ['panduan mpti', 'mpti 2023', '69fd85f237c35']):
-                        authoritative_boost = 5.0
-                if is_kp_trigger:
-                    if any(kw in source_file for kw in ['sosialisasi kp', 'kerja praktek', '69fd85f23b6f2', '69fd85f2279b3']):
-                        authoritative_boost = 5.0
-                if is_ult_trigger:
-                    if any(kw in source_file for kw in ['buku panduan ult', 'panduan ult mahasiswa', '69fd85f22400f']):
-                        authoritative_boost = 5.0
-                if is_ta_trigger:
-                    if any(kw in source_file for kw in ['panduan tugas akhir', 'skripsi', '69fd85f22e22c']):
-                        authoritative_boost = 5.0
                 
-                if authoritative_boost > 0:
+                is_pasca_doc = any(kw in source_file for kw in ['arahan pascasidang', 'press arahan'])
+                is_mpti_doc = any(kw in source_file for kw in ['panduan mpti', 'mpti 2023'])
+                is_ta_doc = any(kw in source_file for kw in ['panduan tugas akhir', 'skripsi'])
+                is_kp_doc = any(kw in source_file for kw in ['sosialisasi kp', 'kerja praktek', 'mbkm'])
+                is_ult_doc = any(kw in source_file for kw in ['buku panduan ult', 'panduan ult mahasiswa'])
+                
+                if is_pasca_trigger or is_ta_trigger:
+                    if is_pasca_doc or is_ta_doc:
+                        authoritative_boost = 5.0
+                    elif is_mpti_doc or is_kp_doc or is_ult_doc:
+                        authoritative_boost = -10.0
+                if is_mpti_trigger:
+                    if is_mpti_doc:
+                        authoritative_boost = 5.0
+                    elif is_ta_doc or is_kp_doc or is_ult_doc or is_pasca_doc:
+                        authoritative_boost = -10.0
+                if is_kp_trigger:
+                    if is_kp_doc:
+                        authoritative_boost = 5.0
+                    elif is_ta_doc or is_mpti_doc or is_ult_doc or is_pasca_doc:
+                        authoritative_boost = -10.0
+                if is_ult_trigger:
+                    if is_ult_doc:
+                        authoritative_boost = 5.0
+                    elif is_ta_doc or is_mpti_doc or is_kp_doc or is_pasca_doc:
+                        authoritative_boost = -10.0
+                
+                if authoritative_boost != 0.0:
                     doc['cross_encoder_score'] += authoritative_boost
-                    if 'metadata' not in doc:
-                        doc['metadata'] = {}
+                    if 'metadata' not in doc: doc['metadata'] = {}
                     doc['metadata']['authoritative_boosted'] = True
 
             # Numeric density boost for quantitative questions
@@ -228,8 +232,11 @@ class CrossEncoderReranker:
                 for doc in reranked_docs:
                     content_lower = doc.get('content', doc.get('text', '')).lower()
                     if re.search(r'\d+', content_lower):
-                        # Boost if it contains numbers and keywords like 'minimal' or 'kali'
-                        if any(term in content_lower for term in ['minimal', 'kali', 'bulan', 'hari', 'skor', 'ipk']):
+                        # Stronger boost if doc hits numbers and specific quantitative words
+                        hits = sum(1 for term in ['minimal', 'kali', 'bulan', 'hari', 'skor', 'ipk', 'sks'] if term in content_lower and term in query_lower)
+                        if hits > 0:
+                            doc['cross_encoder_score'] += (hits * 3.0)
+                        elif any(term in content_lower for term in ['minimal', 'kali', 'bulan', 'hari', 'skor', 'ipk', 'sks']):
                             doc['cross_encoder_score'] += 1.0
 
             # Semantic Alias Boost for Edge Cases (e.g., Form Yudisium)

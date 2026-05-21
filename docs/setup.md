@@ -78,7 +78,7 @@ Atau manual:
 ```bash
 pip install sentence-transformers chromadb transformers
 pip install flask pydantic
-pip install pypdf pdfplumber python-docx
+pip install pypdf pymupdf4llm python-docx
 pip install rich python-dotenv google-generativeai
 ```
 

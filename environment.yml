@@ -48,7 +48,7 @@ dependencies:
 
       # Document Processing (Essential)
       - pypdf>=6.2.0
-      - pdfplumber>=0.11.8
+      - pymupdf4llm>=1.27.0
       - pillow>=12.0.0
 
       # LLM Integration (Essential)

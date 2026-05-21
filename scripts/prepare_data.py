@@ -40,14 +40,14 @@ try:
     import torch
     from transformers import AutoTokenizer
     from sentence_transformers import SentenceTransformer
-    import pdfplumber
+    import pymupdf4llm
     from PIL import Image
     import io
     import base64
 except ImportError as e:
     print(f"❌ Missing dependencies: {e}")
     print("💡 Please install required packages:")
-    print("   pip install torch transformers sentence-transformers pdfplumber pillow")
+    print("   pip install torch transformers sentence-transformers pymupdf4llm pillow")
     sys.exit(1)
 
 # Configure logging
@@ -171,88 +171,96 @@ class DataPreparator:
         return images
 
     def _extract_text_from_pdf(self, pdf_path: Path) -> Dict[str, Any]:
-        """Extract text and metadata from PDF file."""
+        """Extract text and metadata from PDF file using pymupdf4llm (Markdown output)."""
         try:
             logger.info(f"📖 Processing: {pdf_path.name}")
 
-            # Extract text using pdfplumber (better for academic documents)
-            text_content = []
-            extracted_images = []
             metadata = {
                 "source": pdf_path.name,
                 "file_path": str(pdf_path),
                 "file_size": pdf_path.stat().st_size,
-                "processed_at": time.strftime("%Y-%m-%d %H:%M:%S")
+                "processed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "extraction_method": "pymupdf4llm"
             }
 
-            with pdfplumber.open(pdf_path) as pdf:
-                pages = pdf.pages
-                text_content = []
+            print(f"\nEKSTRAKSI TEKS - {pdf_path.name}")
+            print(f"Ukuran file: {pdf_path.stat().st_size / 1024:.1f} KB")
 
-                print(f"\nEKSTRAKSI TEKS - {pdf_path.name}")
-                print(f"Ukuran file: {pdf_path.stat().st_size / 1024:.1f} KB")
-                print(f"Total halaman: {len(pages)}\n")
+            # Extract text as Markdown using pymupdf4llm
+            # This preserves spacing, table structure, and heading hierarchy
+            import pymupdf
+            doc = pymupdf.open(str(pdf_path))
+            total_pages = len(doc)
+            doc.close()
 
-                for i, page in enumerate(pages):
-                    # Extract text
-                    page_text = page.extract_text()
-                    if page_text:
-                        text_content.append({
-                            "page": i + 1,
-                            "text": page_text,
-                            "bbox": page.bbox
-                        })
-                        print(f"\n--- Teks Halaman {i+1} ({len(page_text)} karakter) ---")
-                        print(page_text.strip())
-                        print("-" * 50)
-                    else:
-                        print(f"\n--- Teks Halaman {i+1}: 0 karakter (tidak ada teks) ---")
+            print(f"Total halaman: {total_pages}\n")
 
-                    # Extract images using Pillow
-                    page_images = self._extract_images_from_page(page, i)
-                    extracted_images.extend(page_images)
+            # Get per-page markdown for logging
+            page_chunks = pymupdf4llm.to_markdown(
+                str(pdf_path),
+                page_chunks=True  # Returns list of per-page markdown
+            )
 
-                full_text = "\n\n".join([page["text"] for page in text_content])
-
-                metadata.update({
-                    "total_pages": len(pages),
-                    "content_length": len(full_text),
-                    "has_text": len(full_text.strip()) > 0,
-                    "total_images": len(extracted_images),
-                    "has_images": len(extracted_images) > 0
-                })
-
-                # Image detection summary
-                print(f"\nDETEKSI GAMBAR - {pdf_path.name}")
-                if extracted_images:
-                    for idx, img in enumerate(extracted_images):
-                        print(f"Gambar {idx+1} pada Halaman {img['page']}: Dimensi {img['width']}x{img['height']}, Mode {img.get('mode','?')}, Format Output PNG")
-                        b64 = img.get('image_data', '')
-                        if b64:
-                            b64_preview = b64[:60] + "...[BASE64 TRUNCATED]..." + b64[-20:]
-                            print(f"   Base64 Preview: {b64_preview} (Panjang total: {len(b64):,} karakter)")
-                else:
-                    print("Tidak ada gambar terdeteksi.")
-
-                print(f"\nPENGGABUNGAN TEKS - {pdf_path.name}")
-                word_count = len(full_text.split())
-                print(f"Total karakter: {len(full_text):,}")
-                print(f"Estimasi kata: {word_count:,}")
-                print(f"Halaman dengan teks: {len(text_content)} / {len(pages)}")
-                if full_text.strip():
-                    print(f"\n--- Teks Gabungan Keseluruhan ---")
-                    print(full_text.strip())
+            text_content = []
+            import re
+            # Pattern to strip pymupdf4llm image placeholders:
+            # Format 1: **==> picture [452 x 331] intentionally omitted <==**
+            # Format 2: **----- Start of picture text -----**<br>...**----- End of picture text -----**<br>
+            img_placeholder_pattern = re.compile(
+                r'(\*\*==>.*?intentionally omitted.*?<==\*\*\s*)|(\*\*-----\s*Start of picture text\s*-----\*\*.*?\*\*-----\s*End of picture text\s*-----\*\*(?:<br>)?\s*)', 
+                re.IGNORECASE | re.DOTALL
+            )
+            for i, page_data in enumerate(page_chunks):
+                page_text = page_data.get("text", "") if isinstance(page_data, dict) else str(page_data)
+                # Remove image placeholders from text
+                page_text = img_placeholder_pattern.sub('', page_text)
+                
+                # Fix PDF justified text spacing issues (e.g. "S i s w a" -> "Siswa")
+                # Fix multiple single spaces: "t e k n i k" -> "teknik"
+                page_text = re.sub(
+                    r'\b([a-zA-Z](?:\s+[a-zA-Z]){2,})\b',
+                    lambda m: re.sub(r'\s+', '', m.group(1)), 
+                    page_text
+                )
+                
+                if page_text.strip():
+                    text_content.append({
+                        "page": i + 1,
+                        "text": page_text
+                    })
+                    print(f"\n--- Teks Halaman {i+1} ({len(page_text)} karakter) ---")
+                    print(page_text.strip())
                     print("-" * 50)
+                else:
+                    print(f"\n--- Teks Halaman {i+1}: 0 karakter (tidak ada teks) ---")
 
-            if len(full_text.strip()) == 0 and not extracted_images:
-                logger.warning(f"⚠️  No text or images extracted from {pdf_path.name}")
+            full_text = "\n\n".join([page["text"] for page in text_content])
+
+            metadata.update({
+                "total_pages": total_pages,
+                "content_length": len(full_text),
+                "has_text": len(full_text.strip()) > 0,
+            })
+
+            print(f"\nPENGGABUNGAN TEKS - {pdf_path.name}")
+            word_count = len(full_text.split())
+            print(f"Total karakter: {len(full_text):,}")
+            print(f"Estimasi kata: {word_count:,}")
+            print(f"Halaman dengan teks: {len(text_content)} / {total_pages}")
+            if full_text.strip():
+                print(f"\n--- Teks Gabungan Keseluruhan ---")
+                print(full_text.strip())
+                print("-" * 50)
+
+            if len(full_text.strip()) == 0:
+                logger.warning(f"⚠️  No text extracted from {pdf_path.name}")
                 return {"error": "No content extracted", "metadata": metadata}
 
             return {
                 "text": full_text,
                 "metadata": metadata,
-                "pages": len(pages),
-                "images": extracted_images
+                "pages": total_pages,
+                "images": []
             }
 
         except Exception as e:
@@ -260,38 +268,54 @@ class DataPreparator:
             return {"error": str(e), "metadata": {"source": pdf_path.name}}
 
     def _chunk_text(self, text: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Split text into chunks using tokenizer."""
         try:
-            # Tokenize text
-            tokens = self.tokenizer.encode(text, add_special_tokens=False)
+            chunks = []
+            
+            # Use tokenizer with offset mapping to get exact character positions
+            # This preserves original formatting, spacing, and Markdown tables 
+            # avoiding tokenizer decode artifacts like '# #' or 'u n i v e r s i t a s'
+            encoded = self.tokenizer(text, return_offsets_mapping=True, add_special_tokens=False)
+            tokens = encoded["input_ids"]
+            offsets = encoded["offset_mapping"]
             token_count = len(tokens)
 
-            chunks = []
+            if token_count == 0:
+                return chunks
 
             if token_count <= self.chunk_size:
-                # Text is shorter than chunk size, return as single chunk
-                chunk_text = self.tokenizer.decode(tokens)
                 chunks.append({
-                    "text": chunk_text,
+                    "text": text,
                     "metadata": {
                         **metadata,
                         "chunk_index": 0,
                         "total_chunks": 1,
+                        "token_start": 0,
+                        "token_end": token_count,
                         "token_count": token_count,
-                        "char_count": len(chunk_text)
+                        "char_count": len(text),
+                        "overlap_tokens": 0
                     }
                 })
             else:
                 # Split into overlapping chunks
                 step_size = self.chunk_size - self.chunk_overlap
                 total_chunks = (token_count - self.chunk_overlap) // step_size + 1
+                if (token_count - self.chunk_overlap) % step_size > 0:
+                    total_chunks += 1 # Catch the remainder
 
                 for i in range(total_chunks):
                     start_token = i * step_size
                     end_token = min(start_token + self.chunk_size, token_count)
 
-                    chunk_tokens = tokens[start_token:end_token]
-                    chunk_text = self.tokenizer.decode(chunk_tokens)
+                    if start_token >= token_count:
+                        break
+
+                    # Get exact character slice from original text
+                    start_char = offsets[start_token][0]
+                    # offsets[end_token-1][1] gives the end character of the last token
+                    end_char = offsets[end_token - 1][1]
+                    
+                    chunk_text = text[start_char:end_char]
 
                     chunks.append({
                         "text": chunk_text,
@@ -301,7 +325,7 @@ class DataPreparator:
                             "total_chunks": total_chunks,
                             "token_start": start_token,
                             "token_end": end_token,
-                            "token_count": len(chunk_tokens),
+                            "token_count": end_token - start_token,
                             "char_count": len(chunk_text),
                             "overlap_tokens": self.chunk_overlap if i > 0 else 0
                         }
@@ -389,14 +413,24 @@ class DataPreparator:
 
             if len(chunks) > 1:
                 print(f"\nDemonstrasi Overlap (Chunk 0 -> Chunk 1):")
-                c0_tokens = self.tokenizer.encode(chunks[0]['text'], add_special_tokens=False)
-                c0_overlap_text = self.tokenizer.decode(c0_tokens[-self.chunk_overlap:]).strip()
-                print(f"Chunk 0:\n... {c0_overlap_text}")
+                # Use offset mapping for overlap demonstration to prevent spaces
+                encoded_c0 = self.tokenizer(chunks[0]['text'], return_offsets_mapping=True, add_special_tokens=False)
+                if len(encoded_c0['offset_mapping']) >= self.chunk_overlap and self.chunk_overlap > 0:
+                    start_char_0 = encoded_c0['offset_mapping'][-self.chunk_overlap][0]
+                    c0_overlap_text = chunks[0]['text'][start_char_0:].strip()
+                else:
+                    c0_overlap_text = chunks[0]['text'].strip()
+
+                print(f"Akhir Chunk 0:\n... {c0_overlap_text}")
                 print("-" * 50)
                 
-                c1_tokens = self.tokenizer.encode(chunks[1]['text'], add_special_tokens=False)
-                c1_overlap_text = self.tokenizer.decode(c1_tokens[:self.chunk_overlap]).strip()
-                print(f"Chunk 1:\n{c1_overlap_text} ...")
+                encoded_c1 = self.tokenizer(chunks[1]['text'], return_offsets_mapping=True, add_special_tokens=False)
+                if len(encoded_c1['offset_mapping']) >= self.chunk_overlap and self.chunk_overlap > 0:
+                    end_char_1 = encoded_c1['offset_mapping'][self.chunk_overlap - 1][1]
+                    c1_overlap_text = chunks[1]['text'][:end_char_1].strip()
+                else:
+                    c1_overlap_text = chunks[1]['text'].strip()
+                print(f"Awal Chunk 1:\n{c1_overlap_text} ...")
                 print("-" * 50)
 
             # Add chunks to collection

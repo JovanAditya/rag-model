@@ -7,7 +7,7 @@ from collections import defaultdict
 
 from ..indexing.unified_index_manager import UnifiedIndexManager
 from ..utils.logging import PipelineLogger
-from ..utils.helpers import format_retrieval_results, validate_query, calculate_rerf_score
+from ..utils.helpers import format_retrieval_results, validate_query
 from ..utils.query_optimizer import QueryOptimizer
 from ..utils.result_fusion import ResultFusion
 

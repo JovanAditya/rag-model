@@ -689,18 +689,52 @@ class UnifiedIndexManager:
                     boost_factor *= 6.0 # Q017
 
             # 4. Global isolation & Authoritative boosts
-            auth_map = {
-                '69fd85f237c35': 8.0 if is_mpti else (0.0001 if is_ta else 1.0),
-                '69fd85f22e22c': 8.0 if is_ta else (0.1 if is_mpti else 1.0),
-                '69fd85f22400f': 8.0 if is_ult else 1.0,
-                '69fd85f232c75': 8.0 if (is_pasca or is_ta or is_skpi) else (0.1 if is_mpti else 1.0),
-                '69fd85f22acc3': 8.0 if (is_pasca or is_ta) else (0.1 if is_mpti else 1.0),
-                '69fd85f23fd6e': 8.0 if is_skpi else 1.0,
-                '69fd85f23b6f2': 8.0 if is_kp else (0.1 if is_ta else 1.0),
-                '69fd85f263ab0': 8.0 if is_skpi else 1.0,
-            }
-            if doc_id in auth_map:
-                boost_factor *= auth_map[doc_id]
+            authoritative_boost = 1.0
+            source_lower = source.lower()
+            
+            # 4. Global isolation & Authoritative boosts
+            authoritative_boost = 1.0
+            source_lower = source.lower()
+            
+            is_pasca_doc = any(kw in source_lower for kw in ['arahan pascasidang', 'press arahan'])
+            is_mpti_doc = any(kw in source_lower for kw in ['panduan mpti', 'mpti 2023'])
+            is_ta_doc = any(kw in source_lower for kw in ['panduan tugas akhir', 'skripsi'])
+            is_kp_doc = any(kw in source_lower for kw in ['sosialisasi kp', 'kerja praktek', 'mbkm'])
+            is_ult_doc = any(kw in source_lower for kw in ['buku panduan ult', 'panduan ult'])
+            is_skpi_doc = any(kw in source_lower for kw in ['cara pengisian skpi', 'skpi'])
+            
+            # Strict domain isolation
+            if is_pasca or is_ta:
+                if is_pasca_doc or is_ta_doc:
+                    authoritative_boost = 8.0
+                elif is_mpti_doc or is_kp_doc or is_ult_doc or is_skpi_doc:
+                    authoritative_boost = 0.05
+            
+            if is_mpti:
+                if is_mpti_doc:
+                    authoritative_boost = 8.0
+                elif is_ta_doc or is_kp_doc or is_ult_doc or is_skpi_doc or is_pasca_doc:
+                    authoritative_boost = 0.05
+            
+            if is_kp:
+                if is_kp_doc:
+                    authoritative_boost = 8.0
+                elif is_ta_doc or is_mpti_doc or is_ult_doc or is_skpi_doc or is_pasca_doc:
+                    authoritative_boost = 0.05
+            
+            if is_ult:
+                if is_ult_doc:
+                    authoritative_boost = 8.0
+                elif is_ta_doc or is_mpti_doc or is_kp_doc or is_skpi_doc or is_pasca_doc:
+                    authoritative_boost = 0.05
+            
+            if is_skpi:
+                if is_skpi_doc:
+                    authoritative_boost = 8.0
+                elif is_ta_doc or is_mpti_doc or is_kp_doc or is_ult_doc or is_pasca_doc:
+                    authoritative_boost = 0.05
+            
+            boost_factor *= authoritative_boost
 
             if (is_ta or is_pasca) and "7 hari" in content:
                 boost_factor *= 0.0001

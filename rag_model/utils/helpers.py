@@ -39,49 +39,37 @@ def validate_query(query: str, min_length: int = 3) -> bool:
 
 def truncate_context(
     documents: List[str],
-    max_tokens: int = 2000,
-    tokenizer_name: str = "indobenchmark/indobert-base-p2"
+    max_length: int = 15000,
+    **kwargs
 ) -> str:
     """
     Truncate retrieved documents to fit LLM context window.
 
     Args:
         documents: List of document texts (ordered by relevance)
-        max_tokens: Maximum number of tokens allowed
-        tokenizer_name: Tokenizer to use for counting tokens
+        max_length: Maximum number of characters allowed
+        **kwargs: Ignored compatibility arguments
 
     Returns:
         Truncated context string
     """
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-    except Exception:
-        # Fallback to rough character-based estimation
-        avg_chars_per_token = 4
-        max_chars = max_tokens * avg_chars_per_token
-        context = ""
-        for doc in documents:
-            if len(context) + len(doc) <= max_chars:
-                context += doc + "\n\n"
-            else:
-                break
-        return context.strip()
-
-    # Token-based truncation
-    context_tokens = []
+    context = ""
     for doc in documents:
-        doc_tokens = tokenizer.encode(doc, add_special_tokens=False)
-        if len(context_tokens) + len(doc_tokens) <= max_tokens:
-            context_tokens.extend(doc_tokens)
-            context_tokens.extend([tokenizer.sep_token_id])  # Add separator
+        if len(context) + len(doc) <= max_length:
+            context += doc + "\n\n---\n\n"
         else:
+            # Add as much of the last document as possible without cutting mid-word
+            remaining = max_length - len(context)
+            if remaining > 100:
+                truncated_doc = doc[:remaining]
+                # Try to cut at the last space
+                last_space = truncated_doc.rfind(' ')
+                if last_space > 0:
+                    truncated_doc = truncated_doc[:last_space]
+                context += truncated_doc + "...\n\n"
             break
-
-    # Convert back to text
-    if context_tokens:
-        return tokenizer.decode(context_tokens, skip_special_tokens=True)
-    else:
-        return ""
+            
+    return context.strip()
 
 
 def filter_empty_chunks(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

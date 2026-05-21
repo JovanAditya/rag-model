@@ -107,7 +107,7 @@ pip install "chromadb>=1.3.4"
 pip install "scikit-learn>=1.7.2"
 
 echo "Installing PDF processing..."
-pip install "pypdf>=6.2.0" "pdfplumber>=0.11.8" "pillow>=12.0.0"
+pip install "pypdf>=6.2.0" "pymupdf4llm>=1.27.0" "pillow>=12.0.0"
 
 echo "Installing LLM providers..."
 pip install "requests>=2.32.5" "google-genai>=1.0.0"
