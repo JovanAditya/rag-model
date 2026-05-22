@@ -204,16 +204,17 @@ class RAGConfig:
         return cls.from_dict(config_dict)
 
     @classmethod
-    def from_env(cls, prefix: str = "RAG_") -> 'RAGConfig':
+    def from_env(cls) -> 'RAGConfig':
         """Load configuration from environment variables."""
         config_dict = {}
 
-        # Helper function to get env variable with type conversion
+        # Helper function to get env variable without prefix since the .env keys don't use it consistently
         def get_env_var(key: str, default=None, var_type=str):
-            env_key = f"{prefix}{key.upper()}"
-            value = os.getenv(env_key, default)
+            value = os.getenv(key, default)
             if value is not None:
                 if var_type == bool:
+                    if isinstance(value, bool):
+                        return value
                     return value.lower() in ('true', '1', 'yes', 'on')
                 elif var_type == int:
                     return int(value)
@@ -224,43 +225,43 @@ class RAGConfig:
 
         # Embedding config
         config_dict['embedding'] = {
-            'model_name': get_env_var('embedding_model', 'indobenchmark/indobert-base-p2'),
-            'device': get_env_var('embedding_device', 'cpu'),
-            'batch_size': get_env_var('embedding_batch_size', 32, int),
-            'max_seq_length': get_env_var('embedding_max_seq_length', 512, int),
-            'cache_dir': get_env_var('embedding_cache_dir', None)
+            'model_name': get_env_var('EMBEDDING_MODEL', 'indobenchmark/indobert-base-p2'),
+            'device': get_env_var('EMBEDDING_DEVICE', 'cpu'),
+            'batch_size': get_env_var('EMBEDDING_BATCH_SIZE', 32, int),
+            'max_seq_length': get_env_var('EMBEDDING_MAX_SEQ_LENGTH', 512, int),
+            'cache_dir': get_env_var('EMBEDDING_CACHE_DIR', None)
         }
 
         # LLM config
         config_dict['llm'] = {
-            'model_type': get_env_var('llm_type', 'gemini'),
-            'temperature': get_env_var('llm_temperature', 0.2, float),
-            'max_tokens': get_env_var('llm_max_tokens', 4000, int),
-            'top_p': get_env_var('llm_top_p', 0.9, float),
-            'api_key': get_env_var('google_api_key', None),  # For Gemini
-            'endpoint': get_env_var('ollama_endpoint', None)  # For Ollama
+            'model_type': get_env_var('LLM_PROVIDER', 'gemini'),
+            'temperature': get_env_var('LLM_TEMPERATURE', 0.2, float),
+            'max_tokens': get_env_var('LLM_MAX_TOKENS', 4000, int),
+            'top_p': get_env_var('LLM_TOP_P', 0.9, float),
+            '_api_key': get_env_var('GEMINI_API_KEY', None),  # For Gemini
+            'endpoint': get_env_var('OLLAMA_BASE_URL', None)  # For Ollama
         }
 
         # Retrieval config
         config_dict['retrieval'] = {
-            'pipeline_type': get_env_var('pipeline_type', 'advanced'),
-            'max_results': get_env_var('max_results', 5, int),
-            'use_reranking': get_env_var('use_reranking', True, bool),
-            'bm25_k': get_env_var('bm25_k', 50, int),
-            'vector_k': get_env_var('vector_k', 50, int),
-            'rerank_k': get_env_var('rerank_k', 20, int),
-            'rrf_k': get_env_var('rrf_k', 60, int),
-            'bm25_weight': get_env_var('bm25_weight', 1.0, float),
-            'vector_weight': get_env_var('vector_weight', 1.0, float)
+            'pipeline_type': get_env_var('PIPELINE_TYPE', 'advanced'),
+            'max_results': get_env_var('MAX_RESULTS', 5, int),
+            'use_reranking': get_env_var('USE_RERANKING', True, bool),
+            'bm25_k': get_env_var('BM25_K', 50, int),
+            'vector_k': get_env_var('VECTOR_K', 50, int),
+            'rerank_k': get_env_var('RERANK_K', 20, int),
+            'rrf_k': get_env_var('RRF_K', 60, int),
+            'bm25_weight': get_env_var('BM25_WEIGHT', 1.0, float),
+            'vector_weight': get_env_var('VECTOR_WEIGHT', 1.0, float)
         }
 
         # Index config
         config_dict['index'] = {
-            'chroma_dir': get_env_var('chroma_dir', '../data/chroma_db'),
-            'chroma_collection': get_env_var('chroma_collection', 'academic_docs'),
-            'cache_dir': get_env_var('index_cache_dir', '../data/cache'),
-            'enable_unified_cache': get_env_var('enable_unified_cache', True, bool)
-          }
+            'chroma_dir': get_env_var('CHROMA_PERSIST_DIRECTORY', '../data/chroma_db'),
+            'chroma_collection': get_env_var('COLLECTION_NAME', 'academic_docs'),
+            'cache_dir': get_env_var('INDEX_CACHE_DIR', '../data/cache'),
+            'enable_unified_cache': True
+        }
 
         # BM25 config
         config_dict['bm25'] = {

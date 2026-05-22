@@ -11,8 +11,8 @@ from ..utils.helpers import truncate_context
 @dataclass
 class ContextConfig:
     """Configuration for context building."""
-    max_context_length: int = 8000  # Maximum characters in context
-    max_documents: int = 3  # Maximum number of documents to include
+    max_context_length: int = 15000  # Maximum characters in context
+    max_documents: int = 5  # Maximum number of documents to include
     include_metadata: bool = True  # Whether to include document metadata
     include_scores: bool = True  # Whether to include relevance scores
     separator: str = "\n\n---\n\n"  # Separator between documents

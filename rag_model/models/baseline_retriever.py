@@ -187,6 +187,9 @@ class BaselineRetriever:
 
         # Fuse results using result fusion utility
         fused_results = ResultFusion.fuse_results(all_results, query, strategy="rrf")
+        
+        # Batasi hasil akhir sesuai nilai k yang diminta
+        fused_results = fused_results[:k]
 
         # Add metadata
         latency = time.time() - start_time
