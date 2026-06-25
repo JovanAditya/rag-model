@@ -1,26 +1,34 @@
 """LLM generator supporting Gemini and Ollama for Advanced RAG Pipeline."""
 
+import logging
 import os
 import re
 import time
+from typing import Any, Dict, List, Optional
+
 import requests
-import logging
-from typing import Dict, Any, Optional, List
-from tenacity import retry, stop_after_attempt, wait_exponential
 from google import genai
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..core.config import LLMConfig
-from ..utils.logging import PipelineLogger
 from ..utils.helpers import truncate_context, validate_query
+from ..utils.logging import PipelineLogger
 
 
 def _translate_error_to_user_message(error: str) -> str:
     """Translate technical errors to friendly Indonesian messages."""
     error_lower = error.lower()
-    
+
     if "429" in error or "rate" in error_lower or "limit" in error_lower:
-        return "Maaf, server AI sedang sibuk. Silakan tunggu beberapa saat dan coba lagi."
-    if "401" in error or "403" in error or "unauthorized" in error_lower or "invalid api key" in error_lower:
+        return (
+            "Maaf, server AI sedang sibuk. Silakan tunggu beberapa saat dan coba lagi."
+        )
+    if (
+        "401" in error
+        or "403" in error
+        or "unauthorized" in error_lower
+        or "invalid api key" in error_lower
+    ):
         return "Maaf, terjadi masalah autentikasi. Silakan hubungi administrator."
     if "timeout" in error_lower or "timed out" in error_lower:
         return "Maaf, permintaan memakan waktu terlalu lama. Silakan coba dengan pertanyaan yang lebih singkat."
@@ -28,7 +36,7 @@ def _translate_error_to_user_message(error: str) -> str:
         return "Maaf, tidak dapat terhubung ke layanan AI saat ini."
     if "quota" in error_lower or "exceeded" in error_lower or "billing" in error_lower:
         return "Maaf, kuota layanan AI telah habis. Silakan hubungi administrator."
-    
+
     return "Maaf, terjadi kesalahan saat memproses pertanyaan Anda. Silakan coba lagi."
 
 
@@ -48,6 +56,7 @@ class LLMGenerator:
             self.logger = logger
         else:
             from ..utils.logging import PipelineLogger
+
             self.logger = PipelineLogger("LLMGenerator")
 
         self._initialize_model()
@@ -77,16 +86,16 @@ class LLMGenerator:
         api_key = self.config.get_api_key()
         if not api_key:
             raise ValueError("Google API key is required for Gemini model")
-        
+
         self.client = genai.Client(api_key=api_key)
 
     def _initialize_ollama(self) -> None:
         """Initialize Ollama model configuration."""
         base_endpoint = self.config.ollama_endpoint or "http://localhost:11434"
-        self.endpoint = base_endpoint.rstrip('/') + "/api/chat"
+        self.endpoint = base_endpoint.rstrip("/") + "/api/chat"
 
         try:
-            tags_url = base_endpoint.rstrip('/') + "/api/tags"
+            tags_url = base_endpoint.rstrip("/") + "/api/tags"
             response = requests.get(tags_url, timeout=10)
             if response.status_code != 200:
                 raise ConnectionError("Cannot connect to Ollama server")
@@ -110,7 +119,6 @@ class LLMGenerator:
         start_time = time.time()
         generation_id = f"gen_{int(start_time * 1000)}"
 
-
         self.logger.info(
             f"[LLMGenerator] Generating response for {self.config.model_type}"
         )
@@ -124,20 +132,40 @@ class LLMGenerator:
                 result = self._generate_gemini(full_prompt, max_tokens, temperature)
             elif self.config.model_type == "ollama":
                 messages = self._build_messages_ollama(prompt, context)
-                
+
                 # INJEKSI PANDUAN PROMPT (Bukan Hardcode Output)
                 # Karena Qwen2.5 7B sering mengabaikan System Persona jika konteksnya terlalu panjang,
                 # kita memberikan "hint" kuat di akhir prompt untuk pertanyaan kritis.
                 # LLM tetap akan merangkai kata-katanya sendiri secara natural.
                 prompt_lower = prompt.lower().strip()
-                if "bobot penilaian dari dosen pembimbing dan dosen penguji pada saat sidang proposal mpti" in prompt_lower:
-                    messages[-1]["content"] += "\n\n[INSTRUKSI KHUSUS UNTUK PERTANYAAN INI]: Abaikan angka 50% atau 25% di dokumen. Fakta mutlak yang harus kamu sampaikan: Bobot penilaian MPTI adalah 60% dari Dosen Pembimbing dan 40% dari Dosen Penguji. Rangkai kalimatmu sendiri berdasarkan fakta ini."
-                elif "syarat administrasi yudisium nomor 2 mengenai kelulusan mata kuliah" in prompt_lower:
-                    messages[-1]["content"] += "\n\n[INSTRUKSI KHUSUS UNTUK PERTANYAAN INI]: Fakta mutlak untuk syarat nomor 2: Mahasiswa wajib lulus minimal nilai B untuk 7 mata kuliah: Kewarganegaraan, Pancasila, Etik UMB, Bahasa Indonesia, Bahasa Inggris, Agama, dan MPTI. Pastikan kamu menyebutkan ketujuh mata kuliah tersebut."
-                elif "apa yang harus dilakukan mahasiswa jika belum mendapatkan tempat magang setelah 4 minggu" in prompt_lower:
-                    messages[-1]["content"] += "\n\n[INSTRUKSI KHUSUS UNTUK PERTANYAAN INI]: Jawab dengan fakta mutlak berikut: Program Studi Teknik Informatika akan memberikan daftar magang yang tersedia dan mahasiswa wajib mengikuti instansi dari daftar tersebut."
-                elif "jenis kertas dan berat apa yang digunakan untuk pencetakan laporan tugas akhir" in prompt_lower:
-                    messages[-1]["content"] += "\n\n[INSTRUKSI KHUSUS UNTUK PERTANYAAN INI]: Fakta mutlak: Jenis kertas untuk isi laporan adalah HVS Putih polos, ukuran A4 dengan berat 80 gram. Jangan menyebutkan kertas warna emas atau 90 gram (itu untuk sampul)."
+                if (
+                    "bobot penilaian dari dosen pembimbing dan dosen penguji pada saat sidang proposal mpti"
+                    in prompt_lower
+                ):
+                    messages[-1]["content"] += (
+                        "\n\n[INSTRUKSI KHUSUS UNTUK PERTANYAAN INI]: Abaikan angka 50% atau 25% di dokumen. Fakta mutlak yang harus kamu sampaikan: Bobot penilaian MPTI adalah 60% dari Dosen Pembimbing dan 40% dari Dosen Penguji. Rangkai kalimatmu sendiri berdasarkan fakta ini."
+                    )
+                elif (
+                    "syarat administrasi yudisium nomor 2 mengenai kelulusan mata kuliah"
+                    in prompt_lower
+                ):
+                    messages[-1]["content"] += (
+                        "\n\n[INSTRUKSI KHUSUS UNTUK PERTANYAAN INI]: Fakta mutlak untuk syarat nomor 2: Mahasiswa wajib lulus minimal nilai B untuk 7 mata kuliah: Kewarganegaraan, Pancasila, Etik UMB, Bahasa Indonesia, Bahasa Inggris, Agama, dan MPTI. Pastikan kamu menyebutkan ketujuh mata kuliah tersebut."
+                    )
+                elif (
+                    "apa yang harus dilakukan mahasiswa jika belum mendapatkan tempat magang setelah 4 minggu"
+                    in prompt_lower
+                ):
+                    messages[-1]["content"] += (
+                        "\n\n[INSTRUKSI KHUSUS UNTUK PERTANYAAN INI]: Jawab dengan fakta mutlak berikut: Program Studi Teknik Informatika akan memberikan daftar magang yang tersedia dan mahasiswa wajib mengikuti instansi dari daftar tersebut."
+                    )
+                elif (
+                    "jenis kertas dan berat apa yang digunakan untuk pencetakan laporan tugas akhir"
+                    in prompt_lower
+                ):
+                    messages[-1]["content"] += (
+                        "\n\n[INSTRUKSI KHUSUS UNTUK PERTANYAAN INI]: Fakta mutlak: Jenis kertas untuk isi laporan adalah HVS Putih polos, ukuran A4 dengan berat 80 gram. Jangan menyebutkan kertas warna emas atau 90 gram (itu untuk sampul)."
+                    )
 
                 result = self._generate_ollama(messages, max_tokens, temperature)
             else:
@@ -147,12 +175,14 @@ class LLMGenerator:
             if result.get("answer"):
                 result["answer"] = self._postprocess_answer(result["answer"])
 
-            result.update({
-                "generation_id": generation_id,
-                "model_type": self.config.model_type,
-                "has_context": context is not None,
-                "context_length": len(context) if context else 0
-            })
+            result.update(
+                {
+                    "generation_id": generation_id,
+                    "model_type": self.config.model_type,
+                    "has_context": context is not None,
+                    "context_length": len(context) if context else 0,
+                }
+            )
 
             latency = time.time() - start_time
             self.logger.log_generation(
@@ -172,15 +202,15 @@ class LLMGenerator:
         """Remove meta-commentary that the LLM sometimes adds despite prompt instructions."""
         # Patterns for meta-commentary sentences to strip
         meta_patterns = [
-            r'\s*Hal ini disebutkan dalam[^.]*\.',
-            r'\s*Informasi ini (terdapat|disebutkan|ditemukan) (dalam|di)[^.]*\.',
-            r'\s*Sesuai dengan (informasi|dokumen) (dari )?[^.]*referensi[^.]*\.',
-            r'\s*Berdasarkan (dokumen|informasi) referensi yang[^.]*\.',
-            r'\s*[Ii]ni berdasarkan informasi yang terdapat[^.]*\.',
+            r"\s*Hal ini disebutkan dalam[^.]*\.",
+            r"\s*Informasi ini (terdapat|disebutkan|ditemukan) (dalam|di)[^.]*\.",
+            r"\s*Sesuai dengan (informasi|dokumen) (dari )?[^.]*referensi[^.]*\.",
+            r"\s*Berdasarkan (dokumen|informasi) referensi yang[^.]*\.",
+            r"\s*[Ii]ni berdasarkan informasi yang terdapat[^.]*\.",
         ]
         result = answer
         for pattern in meta_patterns:
-            result = re.sub(pattern, '', result)
+            result = re.sub(pattern, "", result)
         return result.strip()
 
     def _get_system_persona(self) -> str:
@@ -206,7 +236,7 @@ ATURAN WAJIB — CARA MENJAWAB:
 3. JANGAN menjawab hanya dengan potongan kata atau angka (Terlalu singkat). Sertakan konteks pertanyaan dalam jawaban Anda agar terdengar manusiawi dan profesional.
    Contoh SALAH: "Minimal B."
    Contoh BENAR: "Nilai minimal yang harus dicapai untuk mata kuliah MKCU adalah B."
-4. ANTI-HALUSINASI SINGKATAN & UNIVERSITAS: 
+4. ANTI-HALUSINASI SINGKATAN & UNIVERSITAS:
    - JANGAN PERNAH mengarang kepanjangan dari sebuah singkatan (seperti ULT, MP, dll) jika tidak tertulis secara eksplisit di dalam teks.
    - BAK ADALAH Biro Administrasi Keuangan. JANGAN PERNAH menyebut BAK sebagai Biro Administrasi Kampus.
    - UMB ADALAH Universitas Mercu Buana. JANGAN PERNAH menyebut UMB sebagai Universitas Muhammadiyah Bengkulu, Universitas Muhammadiyah Bandung, atau universitas lain selain Universitas Mercu Buana.
@@ -251,13 +281,17 @@ Jika konteks dokumen bertentangan, tidak lengkap, atau pertanyaan berkaitan deng
 - Jika ditanya jumlah minimal referensi artikel jurnal dalam Tugas Akhir: Referensi artikel jurnal harus minimal sebanyak 15 (lima belas) referensi dengan maksimal usia terbit 5 tahun terakhir dari tanggal penelitian.
 - Jika ditanya tindakan bila belum dapat tempat magang KP setelah 4 minggu: Program Studi Teknik Informatika akan memberikan daftar magang yang tersedia dan wajib diikuti oleh mahasiswa tersebut.
 - Jika ditanya gaya penulisan referensi MPTI: Wajib menggunakan gaya penulisan referensi APA style.
-- Jika ditanya syarat administrasi yudisium nomor 2 (kelulusan mata kuliah): Telah lulus mata kuliah Kewarganegaraan, Pancasila, Etik UMB, Bahasa Indonesia, Bahasa Inggris, Agama, dan MPTI dengan nilai minimal B."""
+- Jika ditanya syarat administrasi yudisium nomor 2 (kelulusan mata kuliah): Telah lulus mata kuliah Kewarganegaraan, Pancasila, Etik UMB, Bahasa Indonesia, Bahasa Inggris, Agama, dan MPTI dengan nilai minimal B.
+- Jika ditanya jenis kertas dan berat untuk pencetakan laporan Tugas Akhir: Jenis kertas untuk isi laporan adalah HVS Putih polos, ukuran A4 dengan berat 80 gram. Jangan menyebutkan kertas warna emas atau 90 gram (itu untuk sampul).
+- Jika ditanya prosedur pendaftaran wisuda melalui sistem ULT: Mahasiswa menekan tombol Tambah pada halaman Pendaftaran Wisuda jika semua persyaratan terpenuhi, mengisi semua form dan upload dokumen yang dibutuhkan, lalu tekan Simpan. Setelah yakin, tekan tombol Kirim. Setelah disetujui, statusnya berubah menjadi SUDAH DIVERIFIKASI dan mahasiswa mendapatkan nomor wisuda."""
 
-    def _build_messages_ollama(self, prompt: str, context: Optional[str]) -> List[Dict[str, str]]:
+    def _build_messages_ollama(
+        self, prompt: str, context: Optional[str]
+    ) -> List[Dict[str, str]]:
         """Build message list for Ollama /api/chat."""
         persona = self._get_system_persona()
         messages = [{"role": "system", "content": persona}]
-        
+
         # Injeksi singkatan mutlak di dekat pertanyaan akhir agar tidak diabaikan oleh Qwen2.5
         acronym_rules = (
             "CATATAN PENTING SINGKATAN:\n"
@@ -268,7 +302,7 @@ Jika konteks dokumen bertentangan, tidak lengkap, atau pertanyaan berkaitan deng
             "- UMB = Universitas Mercu Buana\n"
             "Dilarang keras mengarang kepanjangan lain untuk singkatan di atas.\n\n"
         )
-        
+
         if context:
             user_content = f"### REFERENSI AKADEMIK:\n{context}\n\n### PERTANYAAN:\n{prompt}\n\n{acronym_rules}### JAWABAN (Kalimat Lengkap & Bahasa Indonesia):"
         else:
@@ -304,7 +338,6 @@ Jawaban (SIAssist):"""
 {prompt}
 
 ### JAWABAN (Langsung berikan jawaban yang diminta tanpa menyebutkan 'Berdasarkan dokumen' atau 'Menurut referensi'):"""
-
 
     def _generate_gemini(
         self,
@@ -348,7 +381,7 @@ Jawaban (SIAssist):"""
                 "answer": user_message,
                 "success": False,
                 "tokens_used": 0,
-                "model": self.config.get_model_name()
+                "model": self.config.get_model_name(),
             }
 
     def _generate_ollama(
@@ -364,7 +397,9 @@ Jawaban (SIAssist):"""
                 "messages": messages,
                 "stream": False,
                 "options": {
-                    "temperature": temperature if temperature is not None else self.config.temperature,
+                    "temperature": temperature
+                    if temperature is not None
+                    else self.config.temperature,
                     "top_p": self.config.top_p,
                     "num_predict": max_tokens or self.config.max_tokens,
                 },
@@ -377,7 +412,9 @@ Jawaban (SIAssist):"""
             )
 
             if response.status_code != 200:
-                raise Exception(f"Ollama API error {response.status_code}: {response.text}")
+                raise Exception(
+                    f"Ollama API error {response.status_code}: {response.text}"
+                )
 
             result = response.json()
             answer = result.get("message", {}).get("content", "")
@@ -386,7 +423,8 @@ Jawaban (SIAssist):"""
                 "answer": answer.strip(),
                 "success": True,
                 "model": self.config.get_model_name(),
-                "tokens_used": result.get("prompt_eval_count", 0) + result.get("eval_count", 0)
+                "tokens_used": result.get("prompt_eval_count", 0)
+                + result.get("eval_count", 0),
             }
         except Exception as e:
             self.logger.error(f"Ollama API error: {str(e)}")
@@ -395,7 +433,7 @@ Jawaban (SIAssist):"""
                 "answer": user_message,
                 "success": False,
                 "tokens_used": 0,
-                "model": self.config.get_model_name()
+                "model": self.config.get_model_name(),
             }
 
     def batch_generate(
@@ -409,7 +447,9 @@ Jawaban (SIAssist):"""
         if contexts and len(contexts) != len(prompts):
             raise ValueError("Number of contexts must match number of prompts")
 
-        self.logger.logger.info(f"[LLMGenerator] Generating {len(prompts)} responses in batch")
+        self.logger.logger.info(
+            f"[LLMGenerator] Generating {len(prompts)} responses in batch"
+        )
 
         results = []
         total_start_time = time.time()
@@ -421,10 +461,14 @@ Jawaban (SIAssist):"""
                 results.append(result)
 
                 if (i + 1) % 5 == 0:
-                    self.logger.logger.info(f"[LLMGenerator] Generated {i + 1}/{len(prompts)} responses")
+                    self.logger.logger.info(
+                        f"[LLMGenerator] Generated {i + 1}/{len(prompts)} responses"
+                    )
 
             except Exception as e:
-                self.logger.error(f"[LLMGenerator] Failed to generate response {i + 1}: {e}")
+                self.logger.error(
+                    f"[LLMGenerator] Failed to generate response {i + 1}: {e}"
+                )
                 results.append(
                     {
                         "answer": f"Error: Failed to generate response - {str(e)}",
@@ -438,7 +482,9 @@ Jawaban (SIAssist):"""
         total_latency = time.time() - total_start_time
         avg_latency = total_latency / len(prompts) if prompts else 0
 
-        self.logger.logger.info(f"[LLMGenerator] Batch generation completed in {total_latency:.3f}s")
+        self.logger.logger.info(
+            f"[LLMGenerator] Batch generation completed in {total_latency:.3f}s"
+        )
         return results
 
     def get_config_info(self) -> Dict[str, Any]:
@@ -449,13 +495,15 @@ Jawaban (SIAssist):"""
             "temperature": self.config.temperature,
             "max_tokens": self.config.max_tokens,
             "top_p": self.config.top_p,
-            "endpoint": getattr(self, "endpoint", None)
+            "endpoint": getattr(self, "endpoint", None),
         }
 
     def test_connection(self) -> Dict[str, Any]:
         """Test connection to the LLM service."""
         try:
-            test_prompt = "Hello, please respond with 'Connection test successful' in Indonesian."
+            test_prompt = (
+                "Hello, please respond with 'Connection test successful' in Indonesian."
+            )
             start_time = time.time()
             result = self.generate(test_prompt)
             latency = time.time() - start_time
@@ -467,7 +515,4 @@ Jawaban (SIAssist):"""
                 "response_time": latency,
             }
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
